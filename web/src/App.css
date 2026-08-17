@@ -82,7 +82,7 @@ input:focus, select:focus { outline: 3px solid rgba(214,168,67,.25); border-colo
 .search-results { display: grid; gap: .5rem; }
 .search-results article, .rank-list article, .leaderboard article { display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: .8rem; padding: .65rem; border: 1px solid var(--line); border-radius: 8px; background: white; }
 .search-results article div span, .rank-list article div span, .leaderboard article div span { display: block; color: var(--muted); font-size: .8rem; }
-.search-results article button { padding: .55rem .8rem; border: 0; border-radius: 6px; color: white; background: var(--red); }
+.search-results article button { justify-self: end; width: 7rem; padding: .55rem .8rem; border: 0; border-radius: 6px; color: white; white-space: nowrap; background: var(--red); }
 
 .ranking-layout, .community-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, .8fr); gap: 1.2rem; align-items: start; }
 .rank-list, .leaderboard, .unranked, .people-rankings { display: grid; gap: .6rem; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }

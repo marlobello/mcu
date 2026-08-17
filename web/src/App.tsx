@@ -287,7 +287,6 @@ function AddMovieDialog({ request, reload, close, setError }: {
       <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="add-title" onMouseDown={(event) => event.stopPropagation()}>
         <button className="dialog-close" onClick={close} aria-label="Close">×</button>
         <span className="eyebrow">Grow the universe</span><h1 id="add-title">Add a movie</h1>
-        <p>Searches the MCU first, then uses TMDB to find IMDb titles, metadata, and posters.</p>
         <form className="search-form" onSubmit={search}>
           <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} minLength={2} maxLength={100} placeholder="Try “The Princess Bride”" />
           <button className="primary-button" disabled={searching}>{searching ? 'Searching…' : 'Search'}</button>
