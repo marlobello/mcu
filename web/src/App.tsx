@@ -331,7 +331,7 @@ function MyWatchedMovies({ movies, watched, request, reload, setError }: {
             <article key={movie.imdbId}>
               <Poster movie={movie} compact />
               <div><strong>{movie.title}</strong><span>{movie.year} · {movie.rating}</span></div>
-              <button onClick={() => markUnwatched(movie)}>Mark unwatched</button>
+              <button onClick={() => markUnwatched(movie)} aria-label={`Mark ${movie.title} unwatched`}>Unwatch</button>
             </article>
           ))}
         </div>
