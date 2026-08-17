@@ -8,7 +8,7 @@ Technical requirements:
 
 Business requirements:
 - Authenticated users can access the web app
-- Users can add movies to the list of movies contained in the application
+- Users can search for and add multiple movies without closing or resetting the Add Movie dialog
 - All users can see the movies that others have added
 - Users will be able to see an alphabetical list of movies they have marked as watched.
 - Users will be able to see "Munch Watched Movies", ordered by the number of unique users who marked each movie as watched.

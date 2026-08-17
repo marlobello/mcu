@@ -250,6 +250,16 @@ function AddMovieDialog({ request, reload, close, setError }: {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
+  const [addingTmdbIds, setAddingTmdbIds] = useState<Set<number>>(new Set())
+  const [addedTmdbIds, setAddedTmdbIds] = useState<Set<number>>(new Set())
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [close])
 
   const search = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -265,12 +275,26 @@ function AddMovieDialog({ request, reload, close, setError }: {
   }
 
   const add = async (tmdbId: number) => {
+    setAddingTmdbIds((current) => new Set(current).add(tmdbId))
     try {
-      await request('/movies', { method: 'POST', body: JSON.stringify({ tmdbId }) })
-      await reload()
-      close()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Movie could not be added')
+      try {
+        await request('/movies', { method: 'POST', body: JSON.stringify({ tmdbId }) })
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'Movie could not be added')
+        return
+      }
+      setAddedTmdbIds((current) => new Set(current).add(tmdbId))
+      try {
+        await reload()
+      } catch (reason) {
+        setError(reason instanceof Error ? `Movie added, but catalog refresh failed: ${reason.message}` : 'Movie added, but the catalog could not be refreshed')
+      }
+    } finally {
+      setAddingTmdbIds((current) => {
+        const next = new Set(current)
+        next.delete(tmdbId)
+        return next
+      })
     }
   }
 
@@ -284,13 +308,26 @@ function AddMovieDialog({ request, reload, close, setError }: {
           <button className="primary-button" disabled={searching}>{searching ? 'Searching…' : 'Search'}</button>
         </form>
         <div className="search-results">
-          {results.map((result) => (
-            <article key={result.imdbId}>
-              <Poster movie={result} compact />
-              <div><strong>{result.title}</strong><span>{result.year}</span></div>
-              <button disabled={result.alreadyAdded} onClick={() => add(result.tmdbId)}>{result.alreadyAdded ? 'Already added' : 'Add'}</button>
-            </article>
-          ))}
+          {results.map((result) => {
+            const adding = addingTmdbIds.has(result.tmdbId)
+            const added = addedTmdbIds.has(result.tmdbId)
+            return (
+              <article key={result.imdbId}>
+                <Poster movie={result} compact />
+                <div><strong>{result.title}</strong><span>{result.year}</span></div>
+                <button
+                  className={added ? 'added' : undefined}
+                  disabled={result.alreadyAdded || adding || added}
+                  onClick={() => add(result.tmdbId)}
+                >
+                  {added ? 'Added' : result.alreadyAdded ? 'Already added' : adding ? 'Adding…' : 'Add'}
+                </button>
+              </article>
+            )
+          })}
+        </div>
+        <div className="dialog-actions">
+          <button className="primary-button" onClick={close}>Done</button>
         </div>
       </section>
     </div>
