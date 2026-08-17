@@ -293,6 +293,15 @@ function MyMovieShelf({ movies, watched, shelf, request, reload, setError }: {
     }
   }
 
+  const markWatched = async (movie: Movie) => {
+    try {
+      await request(`/movies/${movie.imdbId}/watched`, { method: 'PUT' })
+      await reload()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to update watched status')
+    }
+  }
+
   return (
     <section>
       <div className="section-heading">
@@ -311,9 +320,16 @@ function MyMovieShelf({ movies, watched, shelf, request, reload, setError }: {
                   <div className="movie-title"><div><h2>{movie.title}</h2><p>{movie.year} · {movie.rating}</p></div><span className="pill">{movie.studio}</span></div>
                   <p className="added-by">Added by {movie.addedByUsername}</p>
                   <div className="card-actions">
-                    <button className={isWatched ? 'watched' : ''} disabled={isWatched} onClick={() => removeFromShelf(movie)}>
-                      {isWatched ? '✓ Watched with the kids' : 'Remove from my shelf'}
-                    </button>
+                    <div className="card-action-buttons">
+                      {isWatched ? (
+                        <button className="watched" disabled>✓ Watched with the kids</button>
+                      ) : (
+                        <>
+                          <button onClick={() => markWatched(movie)}>Mark as watched</button>
+                          <button onClick={() => removeFromShelf(movie)}>Remove from my shelf</button>
+                        </>
+                      )}
+                    </div>
                     <a href={movie.imdbUrl} target="_blank" rel="noreferrer">IMDb ↗</a>
                   </div>
                 </div>

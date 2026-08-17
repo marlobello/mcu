@@ -12,6 +12,7 @@ Business requirements:
 - All users can see the movies that others have added on the "Munch movie shelf"
 - Each user has a private "My movie shelf" watch list that is sorted alphabetically
 - Users can add an unwatched movie to or remove it from their personal movie shelf
+- Users can mark an unwatched movie as watched from their personal movie shelf
 - Marking a movie watched automatically adds it to the user's movie shelf
 - Marking a movie unwatched does not remove it from the user's movie shelf
 - Users will be able to see an alphabetical list of movies they have marked as watched.
