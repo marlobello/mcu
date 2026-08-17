@@ -13,7 +13,7 @@
 azd env set AZURE_SUBSCRIPTION_ID a10fe8c6-bd05-4787-8c57-500adc890661
 azd env set AZURE_LOCATION centralus
 azd env set VNET_ENABLED false
-azd env set DISCORD_CLIENT_ID 1479611204929585162
+azd env set DISCORD_CLIENT_ID 1538929522278404156
 azd env set DISCORD_GUILD_ID 734095597342294107
 azd env set CUSTOM_DOMAIN mcu.dotheneedful.dev
 azd env set CONFIGURE_CUSTOM_DOMAIN false
@@ -40,7 +40,7 @@ azd deploy --no-prompt
 
 ## Discord callback
 
-After provisioning, add this URL to the existing MunchHatMap Discord application's OAuth redirect list:
+After provisioning, add this URL to the dedicated Munch Classics Universe Discord application's OAuth redirect list:
 
 ```text
 https://<function-app-name>.azurewebsites.net/api/auth/callback

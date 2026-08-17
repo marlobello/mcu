@@ -37,7 +37,15 @@ app.http('authCallback', {
           redirect_uri: redirectUri,
         }),
       });
-      if (!tokenResponse.ok) return errorResponse(401, 'Discord token exchange failed');
+      if (!tokenResponse.ok) {
+        const discordError = await tokenResponse.text();
+        context.error('Discord token exchange failed', {
+          status: tokenResponse.status,
+          response: discordError.slice(0, 500),
+          redirectUri,
+        });
+        return errorResponse(401, 'Discord token exchange failed');
+      }
 
       const { access_token: accessToken } = await tokenResponse.json() as { access_token: string };
       if (!(await isGuildMember(accessToken))) return errorResponse(403, 'Discord guild membership is required');

@@ -74,6 +74,7 @@ var functionAppName = !empty(apiServiceName) ? apiServiceName : '${abbrs.webSite
 var deploymentStorageContainerName = 'app-package-${take(functionAppName, 32)}-${take(toLower(uniqueString(functionAppName, resourceToken)), 7)}'
 var functionAppUrl = 'https://${functionAppName}.azurewebsites.net'
 var tableEndpoint = 'https://${storage.outputs.name}.table.${environment().suffixes.storage}'
+var customFrontendUrl = 'https://${customDomain}'
 
 // Organize resources in a resource group
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
@@ -153,13 +154,17 @@ module api './app/api.bicep' = {
     identityClientId: apiUserAssignedIdentity.outputs.clientId
     instanceMemoryMB: 512
     maximumInstanceCount: 2
+    allowedOrigins: [
+      web.outputs.url
+      customFrontendUrl
+    ]
     appSettings: {
       AZURE_CLIENT_ID: apiUserAssignedIdentity.outputs.clientId
       McuStorage__accountEndpoint: tableEndpoint
       McuStorage__credential: 'managedidentity'
       McuStorage__clientId: apiUserAssignedIdentity.outputs.clientId
       STORAGE_TABLE_ENDPOINT: tableEndpoint
-      FRONTEND_URL: web.outputs.url
+      FRONTEND_URL: configureCustomDomain ? customFrontendUrl : web.outputs.url
       DISCORD_CLIENT_ID: discordClientId
       DISCORD_GUILD_ID: discordGuildId
       DISCORD_REDIRECT_URI: '${functionAppUrl}/api/auth/callback'
