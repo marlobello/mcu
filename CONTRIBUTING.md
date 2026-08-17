@@ -30,4 +30,4 @@ az bicep build --file infra/main.bicep
 - Keep Azure Functions handlers thin; shared behavior belongs in `src/shared`.
 - Surface operational errors explicitly while returning safe client messages.
 - Preserve IMDb IDs as canonical movie keys.
-- Do not change the aggregate-ranking formula without updating tests and `docs/architecture.md`.
+- Do not change watched-count or tie-ranking behavior without updating tests and `docs/architecture.md`.

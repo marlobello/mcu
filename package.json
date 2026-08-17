@@ -5,10 +5,10 @@
   "type": "module",
   "main": "dist/src/{index.js,functions/*.js}",
   "scripts": {
-    "build": "tsc",
+    "build": "rimraf dist && tsc",
     "watch": "tsc -w",
     "clean": "rimraf dist",
-    "prestart": "npm run clean && npm run build",
+    "prestart": "npm run build",
     "start": "func start",
     "lint": "tsc --noEmit",
     "test": "vitest run"

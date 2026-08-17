@@ -17,8 +17,8 @@ MCU uses a low-idle-cost Azure architecture: a static React client, a scale-to-z
 |-------|---------------|---------|---------|
 | `Movies` | `movie` | IMDb title ID | Shared movie metadata |
 | `Users` | `user` | Discord user ID | Display name and avatar |
-| `Rankings` | Discord user ID | IMDb title ID | Ordered position for a user's ranked movies |
 | `Watched` | Discord user ID | IMDb title ID | Watched-with-the-kids status |
+| `Rankings` | Discord user ID | IMDb title ID | Legacy records retained for rollback; not read or written |
 
 IMDb title IDs are the canonical movie identifiers, making duplicate creation an atomic Table Storage conflict rather than a title-comparison heuristic.
 
@@ -26,18 +26,11 @@ IMDb title IDs are the canonical movie identifiers, making duplicate creation an
 
 Search uses the TMDB movie API. MCU fetches movie details to retain the IMDb ID as the canonical key, maps production companies and release year, selects the preferred US theatrical certification from regional release dates, and renders `w500` posters from TMDB's image CDN. Missing images use the MCU poster placeholder.
 
-A function-key-protected refresh route resolves existing IMDb IDs through TMDB and atomically replaces only each movie entity's metadata. Rankings and watched records remain valid because their IMDb row keys do not change.
+A function-key-protected refresh route resolves existing IMDb IDs through TMDB and atomically replaces only each movie entity's metadata. Watched records remain valid because their IMDb row keys do not change.
 
-## Ranking algorithm
+## Watched-count aggregation
 
-Only movies explicitly included in a user's ordered list are ranked. For a list of length `n`, position `p` receives:
-
-```text
-score = 1                              when n = 1
-score = 1 - ((p - 1) / (n - 1))       when n > 1
-```
-
-The aggregate score is the mean of the normalized scores from users who ranked that movie. Unranked movies do not contribute a zero. Results sort by score, then participation count, then IMDb ID for deterministic ties.
+Each `Watched` entity has a unique Discord-user partition key and IMDb row key, so a user contributes at most one watch to a movie. The community list counts unique users per IMDb ID and sorts by count descending. Movies with equal counts receive the same dense rank; the web client displays tied movies alphabetically. The personal list filters the catalog by the signed-in user's watched IDs and sorts titles alphabetically.
 
 ## Cost controls
 

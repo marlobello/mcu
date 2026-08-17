@@ -24,14 +24,14 @@ exceptions
 
 ## Backups
 
-Azure Table Storage does not provide application-level point-in-time restore in this design. Before destructive maintenance or metadata refresh, export all four tables with Azure Storage Explorer or `az storage entity query` using an authorized identity. Movie metadata can be reconstructed from TMDB, but rankings and watched status cannot.
+Azure Table Storage does not provide application-level point-in-time restore in this design. Before destructive maintenance or metadata refresh, export all four tables with Azure Storage Explorer or `az storage entity query` using an authorized identity. Movie metadata can be reconstructed from TMDB, but watched status cannot. The unused legacy Rankings table is retained for rollback.
 
 ## Recovery
 
 1. Redeploy infrastructure with AZD.
 2. Restore Key Vault secrets.
 3. Import saved table entities.
-4. Verify `/api/health`, Discord sign-in, movie search, ranking save, and watched toggles.
+4. Verify `/api/health`, Discord sign-in, movie search, watched toggles, My Watched Movies, and Munch Watched Movies.
 
 ## Secret rotation
 

@@ -1,6 +1,6 @@
 # Munch Classics Universe
 
-Munch Classics Universe (MCU) is a private, mobile-friendly family movie tracker. Discord-authenticated users build a shared classic-movie catalog, mark movies watched with their children, create personal ordered rankings, and compare those lists with a normalized community ranking.
+Munch Classics Universe (MCU) is a private, mobile-friendly family movie tracker. Discord-authenticated users build a shared classic-movie catalog, mark movies watched with their children, review their personal watched list, and see which movies the community has watched most.
 
 ## Features
 
@@ -9,8 +9,8 @@ Munch Classics Universe (MCU) is a private, mobile-friendly family movie tracker
 - TMDB metadata and poster lookup while retaining IMDb IDs as canonical keys
 - Release year, US content rating, production companies, IMDb link, and movie posters
 - Personal watched-with-the-kids status
-- Personal ordered rankings and community comparisons
-- Aggregate scores that fairly normalize partial ranking lists
+- Alphabetical “My Watched Movies” list
+- “Munch Watched Movies” ranked by unique watcher count with shared ranks for ties
 - Responsive, accessible React interface
 
 ## Architecture
@@ -25,7 +25,7 @@ Munch Classics Universe (MCU) is a private, mobile-friendly family movie tracker
 | Telemetry | Application Insights and Log Analytics |
 | Infrastructure | Azure Developer CLI and Bicep |
 
-See [Architecture](docs/architecture.md) for the data model and ranking algorithm.
+See [Architecture](docs/architecture.md) for the data model and watched-count aggregation.
 
 ## Local development
 

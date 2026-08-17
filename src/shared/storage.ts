@@ -1,11 +1,10 @@
 import { TableClient, TableServiceClient, odata } from '@azure/data-tables';
 import { DefaultAzureCredential, ManagedIdentityCredential } from '@azure/identity';
-import type { Movie, SessionUser, UserRanking } from './types.js';
+import type { Movie, SessionUser, WatchedEntry } from './types.js';
 
 const tableNames = {
   movies: 'Movies',
   users: 'Users',
-  rankings: 'Rankings',
   watched: 'Watched',
 };
 
@@ -99,53 +98,6 @@ export async function replaceMovie(movie: Movie): Promise<void> {
   }, 'Replace');
 }
 
-export async function replaceRanking(user: SessionUser, orderedMovieIds: string[]): Promise<void> {
-  await ensureTables();
-  const client = tableClient(tableNames.rankings);
-  const existing: string[] = [];
-  for await (const entity of client.listEntities({
-    queryOptions: { filter: odata`PartitionKey eq ${user.userId}` },
-  })) {
-    if (entity.rowKey) existing.push(entity.rowKey);
-  }
-
-  for (let index = 0; index < orderedMovieIds.length; index += 1) {
-    await client.upsertEntity({
-      partitionKey: user.userId,
-      rowKey: orderedMovieIds[index],
-      position: index + 1,
-      username: user.username,
-      updatedAt: new Date().toISOString(),
-    }, 'Replace');
-  }
-
-  const retained = new Set(orderedMovieIds);
-  for (const movieId of existing) {
-    if (!retained.has(movieId)) await client.deleteEntity(user.userId, movieId);
-  }
-}
-
-export async function listRankings(): Promise<UserRanking[]> {
-  await ensureTables();
-  const grouped = new Map<string, Array<{ movieId: string; position: number; username: string }>>();
-  for await (const entity of tableClient(tableNames.rankings).listEntities<Record<string, unknown>>()) {
-    if (!entity.partitionKey || !entity.rowKey) continue;
-    const entries = grouped.get(entity.partitionKey) ?? [];
-    entries.push({
-      movieId: entity.rowKey,
-      position: Number(entity.position),
-      username: String(entity.username ?? 'Unknown user'),
-    });
-    grouped.set(entity.partitionKey, entries);
-  }
-
-  return [...grouped.entries()].map(([userId, entries]) => ({
-    userId,
-    username: entries[0]?.username ?? 'Unknown user',
-    orderedMovieIds: entries.sort((a, b) => a.position - b.position).map((entry) => entry.movieId),
-  }));
-}
-
 export async function setWatched(userId: string, imdbId: string, watched: boolean): Promise<void> {
   await ensureTables();
   const client = tableClient(tableNames.watched);
@@ -171,6 +123,17 @@ export async function listWatched(userId: string): Promise<string[]> {
     queryOptions: { filter: odata`PartitionKey eq ${userId}` },
   })) {
     if (entity.rowKey) watched.push(entity.rowKey);
+  }
+  return watched;
+}
+
+export async function listAllWatched(): Promise<WatchedEntry[]> {
+  await ensureTables();
+  const watched: WatchedEntry[] = [];
+  for await (const entity of tableClient(tableNames.watched).listEntities()) {
+    if (entity.partitionKey && entity.rowKey) {
+      watched.push({ userId: entity.partitionKey, imdbId: entity.rowKey });
+    }
   }
   return watched;
 }

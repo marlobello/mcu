@@ -17,14 +17,13 @@ export interface Movie {
   createdAt: string;
 }
 
-export interface UserRanking {
+export interface WatchedEntry {
   userId: string;
-  username: string;
-  orderedMovieIds: string[];
+  imdbId: string;
 }
 
-export interface AggregateRanking {
+export interface WatchedSummary {
   imdbId: string;
-  score: number;
-  rankCount: number;
+  watchCount: number;
+  rank: number;
 }

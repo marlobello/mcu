@@ -15,7 +15,7 @@ The API is an Azure Functions v4 TypeScript application.
 | GET | `/api/movies/search?q=` | Search MCU and TMDB |
 | POST | `/api/movies/refresh` | Function-key-protected TMDB metadata refresh |
 | PUT/DELETE | `/api/movies/{imdbId}/watched` | Set watched status |
-| GET/PUT | `/api/rankings` | Read or replace rankings |
+| GET | `/api/watched` | Aggregate unique watcher counts and shared ranks |
 
 All business routes except the metadata refresh require a bearer session token. The refresh route requires an Azure Functions function key.
 
@@ -25,4 +25,4 @@ All business routes except the metadata refresh require a bearer session token. 
 - `shared/auth.ts`: Discord and session logic
 - `shared/storage.ts`: Table Storage repository
 - `shared/tmdb.ts`: TMDB metadata, certification, IMDb lookup, and poster integration
-- `shared/ranking.ts`: aggregate-ranking algorithm
+- `shared/watchedSummary.ts`: unique-watcher aggregation and dense shared ranks

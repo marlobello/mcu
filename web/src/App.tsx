@@ -18,16 +18,10 @@ interface Movie {
   addedByUsername: string
 }
 
-interface Ranking {
-  userId: string
-  username: string
-  orderedMovieIds: string[]
-}
-
-interface Aggregate {
+interface WatchedSummary {
   imdbId: string
-  score: number
-  rankCount: number
+  watchCount: number
+  rank: number
 }
 
 interface SearchResult {
@@ -46,9 +40,8 @@ function App() {
   const [user, setUser] = useState<User | null>(null)
   const [movies, setMovies] = useState<Movie[]>([])
   const [watched, setWatched] = useState<Set<string>>(new Set())
-  const [rankings, setRankings] = useState<Ranking[]>([])
-  const [aggregate, setAggregate] = useState<Aggregate[]>([])
-  const [tab, setTab] = useState<'catalog' | 'ranking' | 'community'>('catalog')
+  const [communityWatched, setCommunityWatched] = useState<WatchedSummary[]>([])
+  const [tab, setTab] = useState<'catalog' | 'mine' | 'munch'>('catalog')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -68,16 +61,15 @@ function App() {
 
   const loadData = useCallback(async () => {
     if (!token) return
-    const [me, movieData, rankingData] = await Promise.all([
+    const [me, movieData, watchedData] = await Promise.all([
       request<{ user: User }>('/auth/me'),
       request<{ movies: Movie[]; watchedMovieIds: string[] }>('/movies'),
-      request<{ rankings: Ranking[]; aggregate: Aggregate[] }>('/rankings'),
+      request<{ community: WatchedSummary[] }>('/watched'),
     ])
     setUser(me.user)
     setMovies(movieData.movies)
     setWatched(new Set(movieData.watchedMovieIds))
-    setRankings(rankingData.rankings)
-    setAggregate(rankingData.aggregate)
+    setCommunityWatched(watchedData.community)
   }, [request, token])
 
   useEffect(() => {
@@ -136,9 +128,9 @@ function App() {
       </header>
 
       <nav className="tabs" aria-label="Main navigation">
-        {(['catalog', 'ranking', 'community'] as const).map((name) => (
+        {(['catalog', 'mine', 'munch'] as const).map((name) => (
           <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
-            {name === 'catalog' ? 'Movie shelf' : name === 'ranking' ? 'My ranking' : 'Community'}
+            {name === 'catalog' ? 'Movie shelf' : name === 'mine' ? 'My Watched Movies' : 'Munch Watched Movies'}
           </button>
         ))}
       </nav>
@@ -148,10 +140,10 @@ function App() {
         {tab === 'catalog' && (
           <Catalog movies={movies} watched={watched} request={request} reload={loadData} setError={setError} />
         )}
-        {tab === 'ranking' && (
-          <MyRanking movies={movies} user={user} rankings={rankings} request={request} reload={loadData} setError={setError} />
+        {tab === 'mine' && (
+          <MyWatchedMovies movies={movies} watched={watched} request={request} reload={loadData} setError={setError} />
         )}
-        {tab === 'community' && <Community movies={movies} rankings={rankings} aggregate={aggregate} />}
+        {tab === 'munch' && <MunchWatchedMovies movies={movies} community={communityWatched} />}
       </main>
       <footer className="credits">
         <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">
@@ -169,7 +161,7 @@ function LoginScreen({ loading, error }: { loading: boolean; error: string }) {
       <section className="login-card">
         <span className="eyebrow">Munch Classics Universe</span>
         <h1>Build the family movie canon.</h1>
-        <p>Collect the classics you watch together, compare every ranking, and settle the question of what deserves the top spot.</p>
+        <p>Collect the classics you watch together and see which movies the community has watched most.</p>
         {error && <div className="notice error" role="alert">{error}</div>}
         <a className="primary-button discord" href={`${apiBase}/auth/login`}>
           {loading ? 'Checking your session…' : 'Continue with Discord'}
@@ -305,79 +297,77 @@ function AddMovieDialog({ request, reload, close, setError }: {
   )
 }
 
-function MyRanking({ movies, user, rankings, request, reload, setError }: {
+function MyWatchedMovies({ movies, watched, request, reload, setError }: {
   movies: Movie[]
-  user: User
-  rankings: Ranking[]
+  watched: Set<string>
   request: <T>(path: string, init?: RequestInit) => Promise<T>
   reload: () => Promise<void>
   setError: (message: string) => void
 }) {
-  const saved = useMemo(
-    () => rankings.find((ranking) => ranking.userId === user.userId)?.orderedMovieIds ?? [],
-    [rankings, user.userId],
+  const watchedMovies = useMemo(
+    () => movies.filter((movie) => watched.has(movie.imdbId)).sort((a, b) => a.title.localeCompare(b.title)),
+    [movies, watched],
   )
-  const [ordered, setOrdered] = useState<string[]>(saved)
-  useEffect(() => setOrdered(saved), [saved])
-  const byId = new Map(movies.map((movie) => [movie.imdbId, movie]))
-  const available = movies.filter((movie) => !ordered.includes(movie.imdbId))
 
-  const move = (index: number, direction: -1 | 1) => {
-    const target = index + direction
-    if (target < 0 || target >= ordered.length) return
-    setOrdered((current) => {
-      const next = [...current]
-      ;[next[index], next[target]] = [next[target], next[index]]
-      return next
-    })
-  }
-
-  const save = async () => {
+  const markUnwatched = async (movie: Movie) => {
     try {
-      await request('/rankings', { method: 'PUT', body: JSON.stringify({ orderedMovieIds: ordered }) })
+      await request(`/movies/${movie.imdbId}/watched`, { method: 'DELETE' })
       await reload()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Ranking could not be saved')
+      setError(reason instanceof Error ? reason.message : 'Unable to update watched status')
     }
   }
 
   return (
-    <section className="ranking-page">
-      <div className="section-heading"><div><span className="eyebrow">Your ballot</span><h1>Rank your classics</h1><p>Only movies in this list contribute to your ranking.</p></div><button className="primary-button" onClick={save}>Save ranking</button></div>
-      <div className="ranking-layout">
-        <div className="rank-list">
-          {ordered.length === 0 && <EmptyState title="Your ranking is empty" detail="Add movies from the unranked list to get started." />}
-          {ordered.map((id, index) => {
-            const movie = byId.get(id)
-            if (!movie) return null
-            return <article key={id}><span className="rank-number">{index + 1}</span><Poster movie={movie} compact /><div><strong>{movie.title}</strong><span>{movie.year}</span></div><div className="rank-actions"><button onClick={() => move(index, -1)} disabled={index === 0} aria-label={`Move ${movie.title} up`}>↑</button><button onClick={() => move(index, 1)} disabled={index === ordered.length - 1} aria-label={`Move ${movie.title} down`}>↓</button><button onClick={() => setOrdered((items) => items.filter((item) => item !== id))} aria-label={`Remove ${movie.title} from ranking`}>×</button></div></article>
-          })}
-        </div>
-        <aside className="unranked"><h2>Unranked movies</h2><p>Add only the movies you want to judge.</p>{available.map((movie) => <button key={movie.imdbId} onClick={() => setOrdered((items) => [...items, movie.imdbId])}><span>＋</span><div><strong>{movie.title}</strong><small>{movie.year}</small></div></button>)}</aside>
+    <section>
+      <div className="section-heading">
+        <div><span className="eyebrow">Your family movie history</span><h1>My Watched Movies</h1><p>{watchedMovies.length} movies marked as watched with the kids.</p></div>
       </div>
+      {watchedMovies.length === 0 ? (
+        <EmptyState title="No watched movies yet" detail="Mark movies as watched from the movie shelf to build this list." />
+      ) : (
+        <div className="watched-list">
+          {watchedMovies.map((movie) => (
+            <article key={movie.imdbId}>
+              <Poster movie={movie} compact />
+              <div><strong>{movie.title}</strong><span>{movie.year} · {movie.rating}</span></div>
+              <button onClick={() => markUnwatched(movie)}>Mark unwatched</button>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
 
-function Community({ movies, rankings, aggregate }: { movies: Movie[]; rankings: Ranking[]; aggregate: Aggregate[] }) {
+function MunchWatchedMovies({ movies, community }: { movies: Movie[]; community: WatchedSummary[] }) {
   const byId = new Map(movies.map((movie) => [movie.imdbId, movie]))
+  const entries = community
+    .flatMap((entry) => {
+      const movie = byId.get(entry.imdbId)
+      return movie ? [{ ...entry, movie }] : []
+    })
+    .sort((a, b) => b.watchCount - a.watchCount || a.movie.title.localeCompare(b.movie.title))
+
   return (
     <section>
-      <div className="section-heading"><div><span className="eyebrow">The collective verdict</span><h1>Community rankings</h1><p>Scores normalize each person's partial list before averaging.</p></div></div>
-      <div className="community-layout">
-        <div className="leaderboard">
-          <h2>MCU aggregate</h2>
-          {aggregate.length === 0 ? <EmptyState title="No votes yet" detail="Save a personal ranking to create the leaderboard." /> : aggregate.map((entry, index) => {
-            const movie = byId.get(entry.imdbId)
-            if (!movie) return null
-            return <article key={entry.imdbId}><span className="rank-number">{index + 1}</span><Poster movie={movie} compact /><div><strong>{movie.title}</strong><span>{entry.rankCount} {entry.rankCount === 1 ? 'ranking' : 'rankings'}</span></div><b>{entry.score.toFixed(1)}</b></article>
-          })}
-        </div>
-        <div className="people-rankings">
-          <h2>Everyone's lists</h2>
-          {rankings.map((ranking) => <article key={ranking.userId}><h3>{ranking.username}</h3><ol>{ranking.orderedMovieIds.map((id) => <li key={id}>{byId.get(id)?.title ?? id}</li>)}</ol></article>)}
-        </div>
+      <div className="section-heading">
+        <div><span className="eyebrow">The community watchlist</span><h1>Munch Watched Movies</h1><p>Ranked only by how many members have watched each movie.</p></div>
       </div>
+      {entries.length === 0 ? (
+        <EmptyState title="No watched movies yet" detail="The community list appears after someone marks a movie as watched." />
+      ) : (
+        <div className="watched-leaderboard">
+          {entries.map(({ movie, rank, watchCount }) => (
+            <article key={movie.imdbId}>
+              <span className="rank-number">{rank}</span>
+              <Poster movie={movie} compact />
+              <div><strong>{movie.title}</strong><span>{movie.year}</span></div>
+              <b>{watchCount} {watchCount === 1 ? 'watcher' : 'watchers'}</b>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
