@@ -1,0 +1,20 @@
+The goal os this application "Munch Classics Universe" (MCU) is to host a listing of movies that can be ranked by different users.  Its goal is to identify and track classic movies that the users have watched with their kids.
+
+Technical requirements:
+- It must be a modern web application that is mobile friendly.
+- I must run on Azure as cheaply as possible
+- The web application will have a DNS CNAME of mcu.dotheneedful.dev
+- It must have authentication based upon Discord similar to other projects like MunchHatMap (found in ../munchhatmap)
+
+Business requirements:
+- Authenticated users can access the web app
+- Users can add movies to the list of movies contained in the application
+- All users can see the movies that others have added
+- Users will be able to rank the movies in simple ordering process
+- Users will be able to see their ranking of the movies, other users ranking of the movies, as well as an aggregated average ranking of the movies in the MCU.
+- Care must be taken when aggregating and averaging movie ranking in cases where some movies are unranked by some users.
+- The system must not allow duplicate movies to be added, each movie should be associated with and have a link to an IMDB URL for the movie.
+- Metadata for a selected movie should brought into the database from the internet. The data should include Movie Poster, Rating, Release Year, Publisher/Movie Studio
+- When adding a movie a search box should validate against existing movies in the database (to avoid duplicates) as well as search IMDB for suggestions for selection.
+- Filters will be available to filter the view by metadata
+- Each user will be able to "check off" a movie indicating that they have watched it with their kids.

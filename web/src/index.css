@@ -1,0 +1,6 @@
+html { scroll-behavior: smooth; }
+#root { min-height: 100vh; }
+button:focus-visible, a:focus-visible { outline: 3px solid #d6a843; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+}

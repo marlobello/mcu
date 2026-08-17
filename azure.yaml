@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: munch-classics-universe
+metadata:
+  template: functions-quickstart-typescript-azd@1.0.1
+services:
+  api:
+    project: .
+    language: ts
+    host: function
+    remoteBuild: true
+  web:
+    project: ./web
+    language: js
+    host: staticwebapp
+    dist: dist
