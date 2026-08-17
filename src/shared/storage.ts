@@ -1,11 +1,13 @@
 import { TableClient, TableServiceClient, odata } from '@azure/data-tables';
 import { DefaultAzureCredential, ManagedIdentityCredential } from '@azure/identity';
+import { mergeShelfMovieIds } from './movieShelf.js';
 import type { Movie, SessionUser, WatchedEntry } from './types.js';
 
 const tableNames = {
   movies: 'Movies',
   users: 'Users',
   watched: 'Watched',
+  shelf: 'Shelf',
 };
 
 let initialization: Promise<void> | undefined;
@@ -102,10 +104,31 @@ export async function setWatched(userId: string, imdbId: string, watched: boolea
   await ensureTables();
   const client = tableClient(tableNames.watched);
   if (watched) {
+    await setShelf(userId, imdbId, true);
     await client.upsertEntity({
       partitionKey: userId,
       rowKey: imdbId,
       watchedAt: new Date().toISOString(),
+    }, 'Replace');
+    return;
+  }
+  try {
+    await client.getEntity(userId, imdbId);
+    await setShelf(userId, imdbId, true);
+    await client.deleteEntity(userId, imdbId);
+  } catch (error) {
+    if (!isNotFound(error)) throw error;
+  }
+}
+
+export async function setShelf(userId: string, imdbId: string, onShelf: boolean): Promise<void> {
+  await ensureTables();
+  const client = tableClient(tableNames.shelf);
+  if (onShelf) {
+    await client.upsertEntity({
+      partitionKey: userId,
+      rowKey: imdbId,
+      addedAt: new Date().toISOString(),
     }, 'Replace');
     return;
   }
@@ -125,6 +148,17 @@ export async function listWatched(userId: string): Promise<string[]> {
     if (entity.rowKey) watched.push(entity.rowKey);
   }
   return watched;
+}
+
+export async function listShelf(userId: string): Promise<string[]> {
+  await ensureTables();
+  const shelf: string[] = [];
+  for await (const entity of tableClient(tableNames.shelf).listEntities({
+    queryOptions: { filter: odata`PartitionKey eq ${userId}` },
+  })) {
+    if (entity.rowKey) shelf.push(entity.rowKey);
+  }
+  return mergeShelfMovieIds(shelf, await listWatched(userId));
 }
 
 export async function listAllWatched(): Promise<WatchedEntry[]> {

@@ -40,8 +40,9 @@ function App() {
   const [user, setUser] = useState<User | null>(null)
   const [movies, setMovies] = useState<Movie[]>([])
   const [watched, setWatched] = useState<Set<string>>(new Set())
+  const [shelf, setShelf] = useState<Set<string>>(new Set())
   const [communityWatched, setCommunityWatched] = useState<WatchedSummary[]>([])
-  const [tab, setTab] = useState<'catalog' | 'mine' | 'munch'>('catalog')
+  const [tab, setTab] = useState<'catalog' | 'shelf' | 'mine' | 'munch'>('catalog')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -63,12 +64,13 @@ function App() {
     if (!token) return
     const [me, movieData, watchedData] = await Promise.all([
       request<{ user: User }>('/auth/me'),
-      request<{ movies: Movie[]; watchedMovieIds: string[] }>('/movies'),
+      request<{ movies: Movie[]; watchedMovieIds: string[]; shelfMovieIds?: string[] }>('/movies'),
       request<{ community: WatchedSummary[] }>('/watched'),
     ])
     setUser(me.user)
     setMovies(movieData.movies)
     setWatched(new Set(movieData.watchedMovieIds))
+    setShelf(new Set(movieData.shelfMovieIds ?? movieData.watchedMovieIds))
     setCommunityWatched(watchedData.community)
   }, [request, token])
 
@@ -128,9 +130,15 @@ function App() {
       </header>
 
       <nav className="tabs" aria-label="Main navigation">
-        {(['catalog', 'mine', 'munch'] as const).map((name) => (
+        {(['catalog', 'shelf', 'mine', 'munch'] as const).map((name) => (
           <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
-            {name === 'catalog' ? 'Movie shelf' : name === 'mine' ? 'My watched movies' : 'Munch watched movies'}
+            {name === 'catalog'
+              ? 'Munch movie shelf'
+              : name === 'shelf'
+                ? 'My movie shelf'
+                : name === 'mine'
+                  ? 'My watched movies'
+                  : 'Munch watched movies'}
           </button>
         ))}
       </nav>
@@ -138,7 +146,10 @@ function App() {
       <main>
         {error && <div className="notice error" role="alert">{error}</div>}
         {tab === 'catalog' && (
-          <Catalog movies={movies} watched={watched} request={request} reload={loadData} setError={setError} />
+          <MunchMovieShelf movies={movies} watched={watched} shelf={shelf} request={request} reload={loadData} setError={setError} />
+        )}
+        {tab === 'shelf' && (
+          <MyMovieShelf movies={movies} watched={watched} shelf={shelf} request={request} reload={loadData} setError={setError} />
         )}
         {tab === 'mine' && (
           <MyWatchedMovies movies={movies} watched={watched} request={request} reload={loadData} setError={setError} />
@@ -172,9 +183,10 @@ function LoginScreen({ loading, error }: { loading: boolean; error: string }) {
   )
 }
 
-function Catalog({ movies, watched, request, reload, setError }: {
+function MunchMovieShelf({ movies, watched, shelf, request, reload, setError }: {
   movies: Movie[]
   watched: Set<string>
+  shelf: Set<string>
   request: <T>(path: string, init?: RequestInit) => Promise<T>
   reload: () => Promise<void>
   setError: (message: string) => void
@@ -205,10 +217,19 @@ function Catalog({ movies, watched, request, reload, setError }: {
     }
   }
 
+  const addToShelf = async (movie: Movie) => {
+    try {
+      await request(`/movies/${movie.imdbId}/shelf`, { method: 'PUT' })
+      await reload()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to update your movie shelf')
+    }
+  }
+
   return (
     <section>
       <div className="section-heading">
-        <div><span className="eyebrow">Shared collection</span><h1>The movie shelf</h1><p>{movies.length} classics and counting.</p></div>
+        <div><span className="eyebrow">Shared collection</span><h1>Munch movie shelf</h1><p>{movies.length} classics and counting.</p></div>
         <button className="primary-button" onClick={() => setAdding(true)}>Add a movie</button>
       </div>
       <div className="filters">
@@ -226,9 +247,18 @@ function Catalog({ movies, watched, request, reload, setError }: {
                 <div className="movie-title"><div><h2>{movie.title}</h2><p>{movie.year} · {movie.rating}</p></div><span className="pill">{movie.studio}</span></div>
                 <p className="added-by">Added by {movie.addedByUsername}</p>
                 <div className="card-actions">
-                  <button className={watched.has(movie.imdbId) ? 'watched' : ''} onClick={() => toggleWatched(movie)}>
-                    {watched.has(movie.imdbId) ? '✓ Watched with the kids' : 'Mark as watched'}
-                  </button>
+                  <div className="card-action-buttons">
+                    <button className={watched.has(movie.imdbId) ? 'watched' : ''} onClick={() => toggleWatched(movie)}>
+                      {watched.has(movie.imdbId) ? '✓ Watched with the kids' : 'Mark as watched'}
+                    </button>
+                    <button
+                      className={shelf.has(movie.imdbId) ? 'on-shelf' : ''}
+                      disabled={shelf.has(movie.imdbId)}
+                      onClick={() => addToShelf(movie)}
+                    >
+                      {shelf.has(movie.imdbId) ? '✓ On my shelf' : 'Add to my shelf'}
+                    </button>
+                  </div>
                   <a href={movie.imdbUrl} target="_blank" rel="noreferrer">IMDb ↗</a>
                 </div>
               </div>
@@ -237,6 +267,61 @@ function Catalog({ movies, watched, request, reload, setError }: {
         </div>
       )}
       {adding && <AddMovieDialog request={request} reload={reload} close={() => setAdding(false)} setError={setError} />}
+    </section>
+  )
+}
+
+function MyMovieShelf({ movies, watched, shelf, request, reload, setError }: {
+  movies: Movie[]
+  watched: Set<string>
+  shelf: Set<string>
+  request: <T>(path: string, init?: RequestInit) => Promise<T>
+  reload: () => Promise<void>
+  setError: (message: string) => void
+}) {
+  const shelfMovies = useMemo(
+    () => movies.filter((movie) => shelf.has(movie.imdbId)).sort((a, b) => a.title.localeCompare(b.title)),
+    [movies, shelf],
+  )
+
+  const removeFromShelf = async (movie: Movie) => {
+    try {
+      await request(`/movies/${movie.imdbId}/shelf`, { method: 'DELETE' })
+      await reload()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to update your movie shelf')
+    }
+  }
+
+  return (
+    <section>
+      <div className="section-heading">
+        <div><span className="eyebrow">Your watch list</span><h1>My movie shelf</h1><p>{shelfMovies.length} movies saved to watch or already watched.</p></div>
+      </div>
+      {shelfMovies.length === 0 ? (
+        <EmptyState title="Your movie shelf is empty" detail="Add movies from the Munch movie shelf to build your watch list." />
+      ) : (
+        <div className="movie-grid">
+          {shelfMovies.map((movie) => {
+            const isWatched = watched.has(movie.imdbId)
+            return (
+              <article className="movie-card" key={movie.imdbId}>
+                <Poster movie={movie} />
+                <div className="movie-copy">
+                  <div className="movie-title"><div><h2>{movie.title}</h2><p>{movie.year} · {movie.rating}</p></div><span className="pill">{movie.studio}</span></div>
+                  <p className="added-by">Added by {movie.addedByUsername}</p>
+                  <div className="card-actions">
+                    <button className={isWatched ? 'watched' : ''} disabled={isWatched} onClick={() => removeFromShelf(movie)}>
+                      {isWatched ? '✓ Watched with the kids' : 'Remove from my shelf'}
+                    </button>
+                    <a href={movie.imdbUrl} target="_blank" rel="noreferrer">IMDb ↗</a>
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      )}
     </section>
   )
 }

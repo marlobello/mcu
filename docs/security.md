@@ -20,8 +20,10 @@
 
 - IMDb IDs and numeric TMDB movie IDs are format-validated.
 - Duplicate movie creation relies on an atomic Table Storage create.
+- Shelf markers use a unique user/movie Table Storage key and can be read or changed only through an authenticated session.
+- Watched movies cannot be removed from a user's shelf until they are marked unwatched.
 - Watched markers use a unique user/movie Table Storage key, preventing duplicate contributions to community counts.
-- Personal and community watched data require a valid application session.
+- Personal shelf and personal/community watched data require a valid application session.
 - Metadata requests have bounded query lengths.
 - Security headers include CSP, frame denial, content-type protection, and restrictive browser permissions.
 - Production dependencies are audited for high-severity vulnerabilities.

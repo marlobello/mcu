@@ -70,8 +70,11 @@ input:focus, select:focus { outline: 3px solid rgba(214,168,67,.25); border-colo
 .pill { max-width: 150px; padding: .25rem .5rem; overflow: hidden; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: .65rem; text-overflow: ellipsis; white-space: nowrap; }
 .added-by { margin-top: auto; }
 .card-actions { display: flex; align-items: center; justify-content: space-between; gap: .7rem; }
+.card-action-buttons { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem; }
 .card-actions button { padding: .55rem .7rem; border: 1px solid var(--line); border-radius: 6px; background: white; }
 .card-actions button.watched { color: #22613b; border-color: #9bc8aa; background: #edf8f0; }
+.card-actions button.on-shelf { color: #72510c; border-color: #d9bd78; background: #fff8df; }
+.card-actions button:disabled { cursor: default; }
 .card-actions a { font-size: .85rem; font-weight: 700; }
 .empty-state { padding: 2.5rem; border: 1px dashed #bdb2a3; border-radius: 12px; color: var(--muted); text-align: center; background: rgba(255,255,255,.4); }
 
@@ -107,8 +110,8 @@ input:focus, select:focus { outline: 3px solid rgba(214,168,67,.25); border-colo
   .topbar { align-items: flex-start; }
   .brand div span, .user-menu > span { display: none; }
   .brand strong { font-size: .86rem; }
-  .tabs { justify-content: stretch; }
-  .tabs button { flex: 1; padding-inline: .3rem; font-size: .82rem; }
+  .tabs { justify-content: stretch; flex-wrap: wrap; }
+  .tabs button { flex: 1 1 calc(50% - .25rem); padding-inline: .3rem; font-size: .82rem; }
   main { width: min(100% - 1rem, 1240px); padding-top: 2rem; }
   .section-heading { align-items: stretch; flex-direction: column; }
   .filters { grid-template-columns: 1fr; }
@@ -121,6 +124,7 @@ input:focus, select:focus { outline: 3px solid rgba(214,168,67,.25); border-colo
   .pill { display: inline-block; max-width: 100%; margin-bottom: .4rem; }
   .added-by { margin-bottom: .5rem; }
   .card-actions { align-items: center; justify-content: flex-start; flex-direction: row; flex-wrap: wrap; gap: .4rem; }
+  .card-action-buttons { gap: .4rem; }
   .card-actions button { padding: .45rem .55rem; font-size: .76rem; }
   .card-actions a { font-size: .78rem; }
   .search-form { grid-template-columns: 1fr; }

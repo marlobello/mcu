@@ -1,7 +1,7 @@
 import { app } from '@azure/functions';
 import { sessionUser } from '../shared/auth.js';
 import { errorResponse, json, optionsResponse } from '../shared/response.js';
-import { createMovie, getMovie, listMovies, listWatched } from '../shared/storage.js';
+import { createMovie, getMovie, listMovies, listShelf, listWatched } from '../shared/storage.js';
 import { getTmdbMovie, TmdbApiError } from '../shared/tmdb.js';
 
 app.http('movies', {
@@ -14,7 +14,12 @@ app.http('movies', {
     if (!user) return errorResponse(401, 'Authentication required');
 
     if (request.method === 'GET') {
-      return json(200, { movies: await listMovies(), watchedMovieIds: await listWatched(user.userId) });
+      const [movies, watchedMovieIds, shelfMovieIds] = await Promise.all([
+        listMovies(),
+        listWatched(user.userId),
+        listShelf(user.userId),
+      ]);
+      return json(200, { movies, watchedMovieIds, shelfMovieIds });
     }
 
     const body = await request.json().catch(() => null) as { tmdbId?: unknown } | null;

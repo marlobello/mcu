@@ -1,6 +1,6 @@
 # Munch Classics Universe
 
-Munch Classics Universe (MCU) is a private, mobile-friendly family movie tracker. Discord-authenticated users build a shared classic-movie catalog, mark movies watched with their children, review their personal watched list, and see which movies the community has watched most.
+Munch Classics Universe (MCU) is a private, mobile-friendly family movie tracker. Discord-authenticated users build a shared classic-movie catalog, maintain a personal movie shelf, mark movies watched with their children, and see which movies the community has watched most.
 
 ## Features
 
@@ -8,6 +8,7 @@ Munch Classics Universe (MCU) is a private, mobile-friendly family movie tracker
 - Shared movie catalog with duplicate prevention by IMDb title ID
 - TMDB metadata and poster lookup while retaining IMDb IDs as canonical keys
 - Release year, US content rating, production companies, IMDb link, and movie posters
+- Personal “My movie shelf” watch list; watched movies are included automatically
 - Personal watched-with-the-kids status
 - Alphabetical “My Watched Movies” list
 - “Munch Watched Movies” ranked by unique watcher count with shared ranks for ties

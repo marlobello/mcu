@@ -17,6 +17,7 @@ MCU uses a low-idle-cost Azure architecture: a static React client, a scale-to-z
 |-------|---------------|---------|---------|
 | `Movies` | `movie` | IMDb title ID | Shared movie metadata |
 | `Users` | `user` | Discord user ID | Display name and avatar |
+| `Shelf` | Discord user ID | IMDb title ID | Personal movie-shelf membership |
 | `Watched` | Discord user ID | IMDb title ID | Watched-with-the-kids status |
 | `Rankings` | Discord user ID | IMDb title ID | Legacy records retained for rollback; not read or written |
 
@@ -26,7 +27,11 @@ IMDb title IDs are the canonical movie identifiers, making duplicate creation an
 
 Search uses the TMDB movie API. MCU fetches movie details to retain the IMDb ID as the canonical key, maps production companies and release year, selects the preferred US theatrical certification from regional release dates, and renders `w500` posters from TMDB's image CDN. Missing images use the MCU poster placeholder.
 
-A function-key-protected refresh route resolves existing IMDb IDs through TMDB and atomically replaces only each movie entity's metadata. Watched records remain valid because their IMDb row keys do not change.
+A function-key-protected refresh route resolves existing IMDb IDs through TMDB and atomically replaces only each movie entity's metadata. Shelf and watched records remain valid because their IMDb row keys do not change.
+
+## Personal movie shelves
+
+Each `Shelf` entity flags a shared-catalog movie for one user. The API returns the union of explicit shelf records and watched records, so every watched movie appears on My movie shelf, including watched data created before the Shelf table existed. Marking a movie watched persists both states. Marking it unwatched removes only the watched state, while removing a shelf flag is rejected until the movie is unwatched.
 
 ## Watched-count aggregation
 
