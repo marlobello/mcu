@@ -24,15 +24,9 @@ IMDb title IDs are the canonical movie identifiers, making duplicate creation an
 
 ## Metadata
 
-Search uses the Wikidata Action API:
+Search uses the TMDB movie API. MCU fetches movie details to retain the IMDb ID as the canonical key, maps production companies and release year, selects the preferred US theatrical certification from regional release dates, and renders `w500` posters from TMDB's image CDN. Missing images use the MCU poster placeholder.
 
-- IMDb ID: `P345`
-- Publication date: `P577`
-- Production company: `P272`
-- Film rating: `P1657`
-- Reusable image: `P18`
-
-Images are shown only when Wikidata supplies a Wikimedia file. Missing images use the MCU poster placeholder.
+A function-key-protected refresh route resolves existing IMDb IDs through TMDB and atomically replaces only each movie entity's metadata. Rankings and watched records remain valid because their IMDb row keys do not change.
 
 ## Ranking algorithm
 
@@ -51,4 +45,5 @@ The aggregate score is the mean of the normalized scores from users who ranked t
 - Functions Flex Consumption, 512 MB, no always-ready instances, maximum two instances
 - Standard LRS storage
 - Log Analytics pay-as-you-go with 30-day retention
-- No database servers, containers, private endpoints, or paid metadata API
+- No database servers, containers, or private endpoints
+- TMDB developer API for noncommercial use with required attribution

@@ -23,6 +23,9 @@ The Key Vault must contain:
 
 - `discord-client-secret`
 - `session-secret`
+- `tmdb-api-token`
+
+Create a TMDB developer API read-access token and store it directly in Key Vault. Do not place it in AZD environment output, source control, or chat.
 
 ## Provision and deploy
 
@@ -55,6 +58,22 @@ The deployment outputs `STATIC_WEB_APP_HOSTNAME`.
 3. Run `azd provision --no-prompt` again.
 
 Azure Static Web Apps provisions and renews the TLS certificate.
+
+## Refresh existing movie metadata
+
+After deploying the TMDB-enabled API, invoke the function-key-protected route once:
+
+```bash
+FUNCTION_KEY=$(az functionapp keys list \
+  --resource-group rg-mcu-prod \
+  --name func-api-rzsvqm3nukyik \
+  --query functionKeys.default \
+  --output tsv)
+curl --fail-with-body --request POST \
+  "https://func-api-rzsvqm3nukyik.azurewebsites.net/api/movies/refresh?code=${FUNCTION_KEY}"
+```
+
+The response lists refreshed, unmatched, and failed IMDb IDs. Export the tables before running the refresh and investigate any non-empty `unmatched` or `failed` collection.
 
 ## GitHub Actions
 

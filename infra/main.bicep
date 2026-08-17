@@ -170,6 +170,7 @@ module api './app/api.bicep' = {
       DISCORD_REDIRECT_URI: '${functionAppUrl}/api/auth/callback'
       DISCORD_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.outputs.vaultUri}secrets/discord-client-secret/)'
       SESSION_SECRET: '@Microsoft.KeyVault(SecretUri=${keyVault.outputs.vaultUri}secrets/session-secret/)'
+      TMDB_API_TOKEN: '@Microsoft.KeyVault(SecretUri=${keyVault.outputs.vaultUri}secrets/tmdb-api-token/)'
     }
     virtualNetworkSubnetId: vnetEnabled ? serviceVirtualNetwork.outputs.appSubnetID : ''
   }

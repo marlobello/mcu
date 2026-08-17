@@ -24,7 +24,7 @@ exceptions
 
 ## Backups
 
-Azure Table Storage does not provide application-level point-in-time restore in this design. Before destructive maintenance, export all four tables with Azure Storage Explorer or `az storage entity query` using an authorized identity. Movie metadata can be reconstructed from Wikidata, but rankings and watched status cannot.
+Azure Table Storage does not provide application-level point-in-time restore in this design. Before destructive maintenance or metadata refresh, export all four tables with Azure Storage Explorer or `az storage entity query` using an authorized identity. Movie metadata can be reconstructed from TMDB, but rankings and watched status cannot.
 
 ## Recovery
 
@@ -37,6 +37,7 @@ Azure Table Storage does not provide application-level point-in-time restore in 
 
 - Rotate the session secret to invalidate all sessions.
 - Rotate the Discord client secret in the Discord portal, then update Key Vault.
+- Rotate the TMDB API read-access token in TMDB, then update Key Vault.
 - Function App Key Vault references pick up new versions automatically; restart the app if immediate refresh is required.
 
 ## Cost monitoring

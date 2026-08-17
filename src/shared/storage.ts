@@ -89,6 +89,16 @@ export async function createMovie(movie: Movie): Promise<void> {
   });
 }
 
+export async function replaceMovie(movie: Movie): Promise<void> {
+  await ensureTables();
+  await tableClient(tableNames.movies).upsertEntity({
+    partitionKey: 'movie',
+    rowKey: movie.imdbId,
+    ...movie,
+    posterUrl: movie.posterUrl ?? '',
+  }, 'Replace');
+}
+
 export async function replaceRanking(user: SessionUser, orderedMovieIds: string[]): Promise<void> {
   await ensureTables();
   const client = tableClient(tableNames.rankings);

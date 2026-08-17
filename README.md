@@ -6,8 +6,8 @@ Munch Classics Universe (MCU) is a private, mobile-friendly family movie tracker
 
 - Discord OAuth authentication restricted to a configured guild
 - Shared movie catalog with duplicate prevention by IMDb title ID
-- No-key metadata lookup through Wikidata
-- Release year, content rating, studio, IMDb link, and reusable image metadata when available
+- TMDB metadata and poster lookup while retaining IMDb IDs as canonical keys
+- Release year, US content rating, production companies, IMDb link, and movie posters
 - Personal watched-with-the-kids status
 - Personal ordered rankings and community comparisons
 - Aggregate scores that fairly normalize partial ranking lists
@@ -35,6 +35,7 @@ See [Architecture](docs/architecture.md) for the data model and ranking algorith
 - Azure Functions Core Tools 4
 - Azurite or an Azure Storage account
 - A Discord OAuth application with `http://localhost:7071/api/auth/callback` registered
+- A TMDB developer API read-access token
 
 ### Configure
 
@@ -100,4 +101,4 @@ Do not deploy manually before following [Deployment](docs/deployment.md). The re
 
 ## License
 
-This project is licensed under the MIT License. Wikidata structured data is available under CC0; individual Wikimedia images retain their own source licenses.
+This project is licensed under the MIT License. This product uses the TMDB API but is not endorsed or certified by TMDB. TMDB data and images are used under the applicable [TMDB terms](https://www.themoviedb.org/documentation/api/terms-of-use).

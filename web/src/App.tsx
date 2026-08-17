@@ -31,7 +31,7 @@ interface Aggregate {
 }
 
 interface SearchResult {
-  wikidataId: string
+  tmdbId: number
   imdbId: string
   title: string
   year: string
@@ -153,6 +153,12 @@ function App() {
         )}
         {tab === 'community' && <Community movies={movies} rankings={rankings} aggregate={aggregate} />}
       </main>
+      <footer className="credits">
+        <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">
+          <img src="/tmdb-logo.svg" alt="The Movie Database (TMDB)" />
+        </a>
+        <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
+      </footer>
     </div>
   )
 }
@@ -266,9 +272,9 @@ function AddMovieDialog({ request, reload, close, setError }: {
     }
   }
 
-  const add = async (wikidataId: string) => {
+  const add = async (tmdbId: number) => {
     try {
-      await request('/movies', { method: 'POST', body: JSON.stringify({ wikidataId }) })
+      await request('/movies', { method: 'POST', body: JSON.stringify({ tmdbId }) })
       await reload()
       close()
     } catch (reason) {
@@ -281,7 +287,7 @@ function AddMovieDialog({ request, reload, close, setError }: {
       <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="add-title" onMouseDown={(event) => event.stopPropagation()}>
         <button className="dialog-close" onClick={close} aria-label="Close">×</button>
         <span className="eyebrow">Grow the universe</span><h1 id="add-title">Add a movie</h1>
-        <p>Searches the MCU first, then uses open Wikidata records to find IMDb titles and metadata.</p>
+        <p>Searches the MCU first, then uses TMDB to find IMDb titles, metadata, and posters.</p>
         <form className="search-form" onSubmit={search}>
           <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} minLength={2} maxLength={100} placeholder="Try “The Princess Bride”" />
           <button className="primary-button" disabled={searching}>{searching ? 'Searching…' : 'Search'}</button>
@@ -291,7 +297,7 @@ function AddMovieDialog({ request, reload, close, setError }: {
             <article key={result.imdbId}>
               <Poster movie={result} compact />
               <div><strong>{result.title}</strong><span>{result.year}</span></div>
-              <button disabled={result.alreadyAdded} onClick={() => add(result.wikidataId)}>{result.alreadyAdded ? 'Already added' : 'Add'}</button>
+              <button disabled={result.alreadyAdded} onClick={() => add(result.tmdbId)}>{result.alreadyAdded ? 'Already added' : 'Add'}</button>
             </article>
           ))}
         </div>

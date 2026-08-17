@@ -2,7 +2,7 @@ import { app } from '@azure/functions';
 import { sessionUser } from '../shared/auth.js';
 import { errorResponse, json, optionsResponse } from '../shared/response.js';
 import { listMovies } from '../shared/storage.js';
-import { searchWikidataMovies } from '../shared/wikidata.js';
+import { searchTmdbMovies } from '../shared/tmdb.js';
 
 app.http('movieSearch', {
   methods: ['GET', 'OPTIONS'],
@@ -17,13 +17,13 @@ app.http('movieSearch', {
     const local = (await listMovies()).filter((movie) => movie.title.toLowerCase().includes(query.toLowerCase()));
     try {
       const existingIds = new Set(local.map((movie) => movie.imdbId));
-      const external = (await searchWikidataMovies(query)).map((movie) => ({
+      const external = (await searchTmdbMovies(query)).map((movie) => ({
         ...movie,
         alreadyAdded: existingIds.has(movie.imdbId),
       }));
       return json(200, { local, external });
     } catch (error) {
-      context.error('Wikidata search failed', error);
+      context.error('TMDB search failed', error);
       return errorResponse(502, 'Movie metadata provider is unavailable');
     }
   },
