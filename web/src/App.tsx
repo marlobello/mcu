@@ -130,7 +130,7 @@ function App() {
       <nav className="tabs" aria-label="Main navigation">
         {(['catalog', 'mine', 'munch'] as const).map((name) => (
           <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
-            {name === 'catalog' ? 'Movie shelf' : name === 'mine' ? 'My Watched Movies' : 'Munch Watched Movies'}
+            {name === 'catalog' ? 'Movie shelf' : name === 'mine' ? 'My watched movies' : 'Munch watched movies'}
           </button>
         ))}
       </nav>
