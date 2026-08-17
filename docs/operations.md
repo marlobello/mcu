@@ -31,7 +31,7 @@ Azure Table Storage does not provide application-level point-in-time restore in 
 1. Redeploy infrastructure with AZD.
 2. Restore Key Vault secrets.
 3. Import saved table entities.
-4. Verify `/api/health`, Discord sign-in, movie search, shelf and watched toggles, My movie shelf, My Watched Movies, and Munch Watched Movies.
+4. Verify `/api/health`, Discord sign-in, movie search, TMDB rating display, shelf and watched toggles, My movie shelf, My Watched Movies, and Munch Watched Movies.
 
 ## Secret rotation
 

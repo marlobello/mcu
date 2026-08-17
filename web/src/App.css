@@ -67,6 +67,7 @@ input:focus, select:focus { outline: 3px solid rgba(214,168,67,.25); border-colo
 .movie-title { display: flex; align-items: start; justify-content: space-between; gap: .7rem; }
 .movie-title h2 { font-size: 1.35rem; }
 .movie-title p, .added-by { color: var(--muted); font-size: .82rem; }
+.tmdb-rating { display: block; margin-top: .15rem; color: var(--red-dark); font-size: .72rem; font-weight: 700; }
 .pill { max-width: 150px; padding: .25rem .5rem; overflow: hidden; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: .65rem; text-overflow: ellipsis; white-space: nowrap; }
 .added-by { margin-top: auto; }
 .card-actions { display: flex; align-items: center; justify-content: space-between; gap: .7rem; }

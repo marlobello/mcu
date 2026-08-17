@@ -10,6 +10,8 @@ interface TmdbMovieDetails {
   title: string;
   release_date: string;
   poster_path: string | null;
+  vote_average: number;
+  vote_count: number;
   production_companies: Array<{ name: string }>;
 }
 
@@ -96,6 +98,8 @@ async function getTmdbMetadata(tmdbId: number): Promise<Omit<Movie, 'addedByUser
     title: details.title,
     year: yearFromDate(details.release_date),
     rating: usCertification(releaseDates),
+    tmdbScore: validScore(details.vote_average),
+    tmdbVoteCount: validVoteCount(details.vote_count),
     studio: details.production_companies.map((company) => company.name).filter(Boolean).join(', ') || 'Unknown',
     posterUrl: posterUrl(details.poster_path),
     imdbUrl: `https://www.imdb.com/title/${details.imdb_id}/`,
@@ -132,6 +136,14 @@ function posterUrl(path: string | null): string | null {
 
 function yearFromDate(date: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(0, 4) : 'Unknown';
+}
+
+function validScore(value: number): number {
+  return Number.isFinite(value) && value >= 0 && value <= 10 ? value : 0;
+}
+
+function validVoteCount(value: number): number {
+  return Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
 function validImdbId(value: string | null): value is string {

@@ -9,6 +9,8 @@ export interface Movie {
   title: string;
   year: string;
   rating: string;
+  tmdbScore: number;
+  tmdbVoteCount: number;
   studio: string;
   posterUrl: string | null;
   imdbUrl: string;

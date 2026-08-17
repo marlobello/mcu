@@ -56,6 +56,8 @@ describe('TMDB metadata', () => {
       title: 'Star Wars',
       year: '1977',
       rating: 'PG',
+      tmdbScore: 8.2,
+      tmdbVoteCount: 22061,
       studio: 'Lucasfilm Ltd., 20th Century Fox',
       posterUrl: 'https://image.tmdb.org/t/p/w500/star.jpg',
       addedByUserId: 'user-1',
@@ -69,6 +71,8 @@ describe('TMDB metadata', () => {
       title: 'Old title',
       year: 'Unknown',
       rating: 'Unrated',
+      tmdbScore: 0,
+      tmdbVoteCount: 0,
       studio: 'Unknown',
       posterUrl: null,
       imdbUrl: 'https://www.imdb.com/title/tt0076759/',
@@ -98,6 +102,8 @@ function details(overrides: Partial<{
   title: string;
   release_date: string;
   poster_path: string | null;
+  vote_average: number;
+  vote_count: number;
   production_companies: Array<{ name: string }>;
 }>) {
   return {
@@ -106,6 +112,8 @@ function details(overrides: Partial<{
     title: 'Movie',
     release_date: '2000-01-01',
     poster_path: null,
+    vote_average: 8.2,
+    vote_count: 22061,
     production_companies: [],
     ...overrides,
   };

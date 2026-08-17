@@ -7,7 +7,7 @@ Munch Classics Universe (MCU) is a private, mobile-friendly family movie tracker
 - Discord OAuth authentication restricted to a configured guild
 - Shared movie catalog with duplicate prevention by IMDb title ID
 - TMDB metadata and poster lookup while retaining IMDb IDs as canonical keys
-- Release year, US content rating, production companies, IMDb link, and movie posters
+- Release year, US content rating, TMDB score and vote count, production companies, IMDb link, and movie posters
 - Personal “My movie shelf” watch list; watched movies are included automatically
 - Personal watched-with-the-kids status
 - Alphabetical “My Watched Movies” list

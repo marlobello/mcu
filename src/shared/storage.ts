@@ -179,6 +179,8 @@ function movieFromEntity(entity: Record<string, unknown> & { rowKey?: string }):
     title: String(entity.title),
     year: String(entity.year),
     rating: String(entity.rating),
+    tmdbScore: Number(entity.tmdbScore) || 0,
+    tmdbVoteCount: Number(entity.tmdbVoteCount) || 0,
     studio: String(entity.studio),
     posterUrl: entity.posterUrl ? String(entity.posterUrl) : null,
     imdbUrl: String(entity.imdbUrl),

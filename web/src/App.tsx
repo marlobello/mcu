@@ -12,6 +12,8 @@ interface Movie {
   title: string
   year: string
   rating: string
+  tmdbScore: number
+  tmdbVoteCount: number
   studio: string
   posterUrl: string | null
   imdbUrl: string
@@ -34,6 +36,7 @@ interface SearchResult {
 }
 
 const apiBase = (import.meta.env.VITE_API_URL ?? 'http://localhost:7071/api').replace(/\/$/, '')
+const voteCountFormatter = new Intl.NumberFormat('en-US')
 
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem('mcu-token'))
@@ -244,7 +247,7 @@ function MunchMovieShelf({ movies, watched, shelf, request, reload, setError }: 
             <article className="movie-card" key={movie.imdbId}>
               <Poster movie={movie} />
               <div className="movie-copy">
-                <div className="movie-title"><div><h2>{movie.title}</h2><p>{movie.year} · {movie.rating}</p></div><span className="pill">{movie.studio}</span></div>
+                <div className="movie-title"><div><h2>{movie.title}</h2><p>{movie.year} · {movie.rating}</p><TmdbRating movie={movie} /></div><span className="pill">{movie.studio}</span></div>
                 <p className="added-by">Added by {movie.addedByUsername}</p>
                 <div className="card-actions">
                   <div className="card-action-buttons">
@@ -317,7 +320,7 @@ function MyMovieShelf({ movies, watched, shelf, request, reload, setError }: {
               <article className="movie-card" key={movie.imdbId}>
                 <Poster movie={movie} />
                 <div className="movie-copy">
-                  <div className="movie-title"><div><h2>{movie.title}</h2><p>{movie.year} · {movie.rating}</p></div><span className="pill">{movie.studio}</span></div>
+                  <div className="movie-title"><div><h2>{movie.title}</h2><p>{movie.year} · {movie.rating}</p><TmdbRating movie={movie} /></div><span className="pill">{movie.studio}</span></div>
                   <p className="added-by">Added by {movie.addedByUsername}</p>
                   <div className="card-actions">
                     <div className="card-action-buttons">
@@ -468,7 +471,7 @@ function MyWatchedMovies({ movies, watched, request, reload, setError }: {
           {watchedMovies.map((movie) => (
             <article key={movie.imdbId}>
               <Poster movie={movie} compact />
-              <div><strong>{movie.title}</strong><span>{movie.year} · {movie.rating}</span></div>
+              <div><strong>{movie.title}</strong><span>{movie.year} · {movie.rating}</span><TmdbRating movie={movie} /></div>
               <button onClick={() => markUnwatched(movie)} aria-label={`Mark ${movie.title} unwatched`}>Unwatch</button>
             </article>
           ))}
@@ -500,7 +503,7 @@ function MunchWatchedMovies({ movies, community }: { movies: Movie[]; community:
             <article key={movie.imdbId}>
               <span className="rank-number">{rank}</span>
               <Poster movie={movie} compact />
-              <div><strong>{movie.title}</strong><span>{movie.year}</span></div>
+              <div><strong>{movie.title}</strong><span>{movie.year}</span><TmdbRating movie={movie} /></div>
               <b>{watchCount} {watchCount === 1 ? 'watcher' : 'watchers'}</b>
             </article>
           ))}
@@ -514,6 +517,16 @@ function Poster({ movie, compact = false }: { movie: { title: string; posterUrl:
   return movie.posterUrl
     ? <img className={compact ? 'poster compact' : 'poster'} src={movie.posterUrl} alt={`${movie.title} poster`} loading="lazy" />
     : <div className={compact ? 'poster compact placeholder' : 'poster placeholder'} aria-label={`No poster for ${movie.title}`}>MCU</div>
+}
+
+function TmdbRating({ movie }: { movie: Pick<Movie, 'tmdbScore' | 'tmdbVoteCount'> }) {
+  return (
+    <span className="tmdb-rating">
+      {movie.tmdbVoteCount > 0
+        ? `${Math.round(movie.tmdbScore * 10)}% TMDB · ${voteCountFormatter.format(movie.tmdbVoteCount)} votes`
+        : 'TMDB rating unavailable'}
+    </span>
+  )
 }
 
 function EmptyState({ title, detail }: { title: string; detail: string }) {
