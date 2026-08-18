@@ -1,70 +1,36 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
+import { ApiError, apiFetch, clearToken, errorMessage, readToken, sessionNeedsRenewal, storeToken } from './api'
+import { LoginScreen } from './components/LoginScreen'
+import { MunchMovieShelf } from './components/MunchMovieShelf'
+import { MunchWatchedMovies } from './components/MunchWatchedMovies'
+import { MyMovieShelf } from './components/MyMovieShelf'
+import { MyWatchedMovies } from './components/MyWatchedMovies'
+import type { AuthState, Movie, TabName, User, WatchedSummary } from './types'
 
-interface User {
-  userId: string
-  username: string
-  avatar: string | null
+const tabLabels: Record<TabName, string> = {
+  catalog: 'Munch movie shelf',
+  shelf: 'My movie shelf',
+  mine: 'My watched movies',
+  munch: 'Munch watched movies',
 }
 
-interface Movie {
-  imdbId: string
-  title: string
-  year: string
-  rating: string
-  tmdbScore: number
-  tmdbVoteCount: number
-  studio: string
-  posterUrl: string | null
-  imdbUrl: string
-  addedByUsername: string
+const tabNames = Object.keys(tabLabels) as TabName[]
+
+function readHash(name: string): string | null {
+  return new URLSearchParams(window.location.hash.slice(1)).get(name)
 }
 
-interface WatchedSummary {
-  imdbId: string
-  watchCount: number
-  rank: number
-}
-
-interface SearchResult {
-  tmdbId: number
-  imdbId: string
-  title: string
-  year: string
-  posterUrl: string | null
-  alreadyAdded: boolean
-}
-
-type AuthState = 'checking' | 'authenticated' | 'anonymous' | 'error'
-
-class ApiError extends Error {
-  readonly status: number
-
-  constructor(status: number, message: string) {
-    super(message)
-    this.status = status
-  }
-}
-
-const apiBase = (import.meta.env.VITE_API_URL ?? 'http://localhost:7071/api').replace(/\/$/, '')
-const voteCountFormatter = new Intl.NumberFormat('en-US')
-const renewalWindowMs = 7 * 24 * 60 * 60 * 1000
-
-function sessionNeedsRenewal(token: string): boolean {
-  try {
-    const encoded = token.split('.')[1]
-    if (!encoded) return false
-    const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(encoded.length / 4) * 4, '=')
-    const payload = JSON.parse(atob(base64)) as { exp?: unknown }
-    return typeof payload.exp === 'number' && payload.exp * 1000 - Date.now() <= renewalWindowMs
-  } catch {
-    return false
-  }
+function withMember(members: Set<string>, value: string, present: boolean): Set<string> {
+  const next = new Set(members)
+  if (present) next.add(value)
+  else next.delete(value)
+  return next
 }
 
 function App() {
-  const [token, setToken] = useState(() => localStorage.getItem('mcu-token'))
-  const [exchangeCode] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('code'))
+  const [token, setToken] = useState(readToken)
+  const [exchangeCode] = useState(() => readHash('code'))
   const [exchangePending, setExchangePending] = useState(Boolean(exchangeCode))
   const [authState, setAuthState] = useState<AuthState>(() => token || exchangeCode ? 'checking' : 'anonymous')
   const [authRetry, setAuthRetry] = useState(0)
@@ -73,49 +39,70 @@ function App() {
   const [watched, setWatched] = useState<Set<string>>(new Set())
   const [shelf, setShelf] = useState<Set<string>>(new Set())
   const [communityWatched, setCommunityWatched] = useState<WatchedSummary[]>([])
-  const [tab, setTab] = useState<'catalog' | 'shelf' | 'mine' | 'munch'>('catalog')
-  const [error, setError] = useState('')
+  const [tab, setTab] = useState<TabName>('catalog')
+  const [error, setError] = useState(() => readHash('error') ?? '')
+  // Set when a token is replaced by silent renewal so the data-loading effect can skip a redundant reload.
+  const renewedSilently = useRef(false)
+  // Mirrors the shelf so mutation callbacks can read it without depending on its identity.
+  const shelfRef = useRef(shelf)
+  // StrictMode invokes effects twice in development; exchange codes are single-use server-side.
+  const exchangeAttempted = useRef(false)
+
+  useEffect(() => {
+    shelfRef.current = shelf
+  }, [shelf])
+
+  // The OAuth callback reports failures through the URL fragment; clear it once it has been read.
+  useEffect(() => {
+    if (readHash('error')) window.history.replaceState(null, '', window.location.pathname)
+  }, [])
+
+  const signOut = useCallback((message = '') => {
+    clearToken()
+    setToken(null)
+    setUser(null)
+    setAuthState('anonymous')
+    setError(message)
+  }, [])
 
   const request = useCallback(async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
-    const activeToken = localStorage.getItem('mcu-token')
-    const response = await fetch(`${apiBase}${path}`, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
-        ...init.headers,
-      },
-    })
-    const body = await response.json().catch(() => ({})) as T & { error?: string }
-    if (!response.ok) {
-      const reason = new ApiError(response.status, body.error ?? `Request failed with ${response.status}`)
-      if (response.status === 401) {
-        localStorage.removeItem('mcu-token')
-        setToken(null)
-        setUser(null)
-        setAuthState('anonymous')
-        setError('Your session expired. Continue with Discord to sign in again.')
+    try {
+      return await apiFetch<T>(path, init)
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 401) {
+        signOut('Your session expired. Continue with Discord to sign in again.')
       }
       throw reason
     }
-    return body
-  }, [])
+  }, [signOut])
+
+  const refreshCommunity = useCallback(async () => {
+    const data = await request<{ community: WatchedSummary[] }>('/watched')
+    setCommunityWatched(data.community)
+  }, [request])
+
+  const refreshCatalog = useCallback(async () => {
+    const data = await request<{ movies: Movie[]; watchedMovieIds: string[]; shelfMovieIds?: string[] }>('/movies')
+    setMovies(data.movies)
+    setWatched(new Set(data.watchedMovieIds))
+    setShelf(new Set(data.shelfMovieIds ?? data.watchedMovieIds))
+  }, [request])
 
   const loadData = useCallback(async () => {
-    if (!token) return
-    const [me, movieData, watchedData] = await Promise.all([
+    const [me] = await Promise.all([
       request<{ user: User }>('/auth/me'),
-      request<{ movies: Movie[]; watchedMovieIds: string[]; shelfMovieIds?: string[] }>('/movies'),
-      request<{ community: WatchedSummary[] }>('/watched'),
+      refreshCatalog(),
+      refreshCommunity(),
     ])
     setUser(me.user)
-    setMovies(movieData.movies)
-    setWatched(new Set(movieData.watchedMovieIds))
-    setShelf(new Set(movieData.shelfMovieIds ?? movieData.watchedMovieIds))
-    setCommunityWatched(watchedData.community)
-  }, [request, token])
+  }, [refreshCatalog, refreshCommunity, request])
 
   useEffect(() => {
+    // The first invocation owns the redemption; a StrictMode replay must not touch any state,
+    // otherwise it would clear the pending flag while the real request is still in flight.
+    if (exchangeAttempted.current) return
+    exchangeAttempted.current = true
+
     const exchange = async () => {
       if (!exchangeCode) {
         setExchangePending(false)
@@ -123,21 +110,19 @@ function App() {
       }
       setAuthState('checking')
       window.history.replaceState(null, '', window.location.pathname)
-      const response = await fetch(`${apiBase}/auth/exchange`, {
+      const body = await apiFetch<{ token: string }>('/auth/exchange', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: exchangeCode }),
       })
-      const body = await response.json() as { token?: string; error?: string }
-      if (!response.ok || !body.token) throw new Error(body.error ?? 'Sign-in failed')
-      localStorage.setItem('mcu-token', body.token)
+      if (!body.token) throw new Error('Sign-in failed')
+      storeToken(body.token)
       setToken(body.token)
     }
 
     exchange()
       .catch((reason: unknown) => {
-        setError(reason instanceof Error ? reason.message : 'Sign-in failed')
-        if (!localStorage.getItem('mcu-token')) setAuthState('anonymous')
+        setError(errorMessage(reason, 'Sign-in failed'))
+        if (!readToken()) setAuthState('anonymous')
       })
       .finally(() => setExchangePending(false))
   }, [exchangeCode])
@@ -147,6 +132,11 @@ function App() {
     if (!token) {
       setUser(null)
       setAuthState('anonymous')
+      return
+    }
+    // A silently renewed token represents the same session, so the loaded data stays valid.
+    if (renewedSilently.current) {
+      renewedSilently.current = false
       return
     }
 
@@ -160,7 +150,10 @@ function App() {
         if (!sessionNeedsRenewal(token)) return
         try {
           const renewed = await request<{ token: string }>('/auth/renew', { method: 'POST' })
-          if (!cancelled) localStorage.setItem('mcu-token', renewed.token)
+          if (cancelled) return
+          storeToken(renewed.token)
+          renewedSilently.current = true
+          setToken(renewed.token)
         } catch (reason) {
           if (cancelled || reason instanceof ApiError && reason.status === 401) return
           setError('Your session is active, but automatic renewal failed. It will retry next time.')
@@ -169,20 +162,49 @@ function App() {
       .catch((reason: unknown) => {
         if (cancelled || reason instanceof ApiError && reason.status === 401) return
         setAuthState('error')
-        setError(reason instanceof Error ? reason.message : 'Unable to load MCU')
+        setError(errorMessage(reason, 'Unable to load MCU'))
       })
     return () => {
       cancelled = true
     }
   }, [authRetry, exchangePending, loadData, request, token])
 
-  const logout = () => {
-    localStorage.removeItem('mcu-token')
-    setToken(null)
-    setUser(null)
-    setAuthState('anonymous')
+  /**
+   * Watched and shelf toggles update local state immediately and only reconcile the community
+   * summary afterwards, so a single click no longer refetches the whole catalog.
+   */
+  const changeWatched = useCallback(async (imdbId: string, isWatched: boolean) => {
+    // Marking a movie watched also puts it on the shelf, but only if it was not there already —
+    // otherwise a rollback would remove a shelf entry the user had added deliberately.
+    const addedToShelf = isWatched && !shelfRef.current.has(imdbId)
+    setWatched((current) => withMember(current, imdbId, isWatched))
+    if (addedToShelf) setShelf((current) => withMember(current, imdbId, true))
     setError('')
-  }
+    try {
+      await request(`/movies/${imdbId}/watched`, { method: isWatched ? 'PUT' : 'DELETE' })
+    } catch (reason) {
+      // Roll back only this movie so a concurrent toggle that already succeeded is preserved.
+      setWatched((current) => withMember(current, imdbId, !isWatched))
+      if (addedToShelf) setShelf((current) => withMember(current, imdbId, false))
+      setError(errorMessage(reason, 'Unable to update watched status'))
+      return
+    }
+    // The write is already persisted, so a failed summary refresh must not undo it.
+    await refreshCommunity().catch(() => {
+      setError('Watched status saved, but the community list could not be refreshed.')
+    })
+  }, [refreshCommunity, request])
+
+  const changeShelf = useCallback(async (imdbId: string, onShelf: boolean) => {
+    setShelf((current) => withMember(current, imdbId, onShelf))
+    setError('')
+    try {
+      await request(`/movies/${imdbId}/shelf`, { method: onShelf ? 'PUT' : 'DELETE' })
+    } catch (reason) {
+      setShelf((current) => withMember(current, imdbId, !onShelf))
+      setError(errorMessage(reason, 'Unable to update your movie shelf'))
+    }
+  }, [request])
 
   const retryAuthentication = () => {
     setError('')
@@ -203,20 +225,14 @@ function App() {
         </div>
         <div className="user-menu">
           <span>Hi, {user.username}</span>
-          <button className="quiet-button" onClick={logout}>Sign out</button>
+          <button className="quiet-button" onClick={() => signOut()}>Sign out</button>
         </div>
       </header>
 
       <nav className="tabs" aria-label="Main navigation">
-        {(['catalog', 'shelf', 'mine', 'munch'] as const).map((name) => (
+        {tabNames.map((name) => (
           <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
-            {name === 'catalog'
-              ? 'Munch movie shelf'
-              : name === 'shelf'
-                ? 'My movie shelf'
-                : name === 'mine'
-                  ? 'My watched movies'
-                  : 'Munch watched movies'}
+            {tabLabels[name]}
           </button>
         ))}
       </nav>
@@ -224,14 +240,26 @@ function App() {
       <main>
         {error && <div className="notice error" role="alert">{error}</div>}
         {tab === 'catalog' && (
-          <MunchMovieShelf movies={movies} watched={watched} shelf={shelf} request={request} reload={loadData} setError={setError} />
+          <MunchMovieShelf
+            movies={movies}
+            watched={watched}
+            shelf={shelf}
+            request={request}
+            onCatalogChange={refreshCatalog}
+            setWatched={changeWatched}
+            setOnShelf={changeShelf}
+          />
         )}
         {tab === 'shelf' && (
-          <MyMovieShelf movies={movies} watched={watched} shelf={shelf} request={request} reload={loadData} setError={setError} />
+          <MyMovieShelf
+            movies={movies}
+            watched={watched}
+            shelf={shelf}
+            setWatched={changeWatched}
+            setOnShelf={changeShelf}
+          />
         )}
-        {tab === 'mine' && (
-          <MyWatchedMovies movies={movies} watched={watched} request={request} reload={loadData} setError={setError} />
-        )}
+        {tab === 'mine' && <MyWatchedMovies movies={movies} watched={watched} setWatched={changeWatched} />}
         {tab === 'munch' && <MunchWatchedMovies movies={movies} community={communityWatched} />}
       </main>
       <footer className="credits">
@@ -242,383 +270,6 @@ function App() {
       </footer>
     </div>
   )
-}
-
-function LoginScreen({ authState, error, retry }: {
-  authState: AuthState
-  error: string
-  retry: () => void
-}) {
-  return (
-    <main className="login-page">
-      <section className="login-card">
-        <span className="eyebrow">Munch Classics Universe</span>
-        <h1>Build the family movie canon.</h1>
-        <p>Collect the classics you watch together and see which movies the community has watched most.</p>
-        {error && <div className="notice error" role="alert">{error}</div>}
-        {authState === 'checking' ? (
-          <div className="session-status" role="status">Checking your session…</div>
-        ) : authState === 'error' ? (
-          <button className="primary-button retry" onClick={retry}>Retry</button>
-        ) : (
-          <a className="primary-button discord" href={`${apiBase}/auth/login`}>Continue with Discord</a>
-        )}
-        <small>Access is limited to members of the configured Discord community.</small>
-      </section>
-    </main>
-  )
-}
-
-function MunchMovieShelf({ movies, watched, shelf, request, reload, setError }: {
-  movies: Movie[]
-  watched: Set<string>
-  shelf: Set<string>
-  request: <T>(path: string, init?: RequestInit) => Promise<T>
-  reload: () => Promise<void>
-  setError: (message: string) => void
-}) {
-  const [query, setQuery] = useState('')
-  const [rating, setRating] = useState('')
-  const [minimumScore, setMinimumScore] = useState('')
-  const [year, setYear] = useState('')
-  const [adding, setAdding] = useState(false)
-
-  const filtered = useMemo(() => movies.filter((movie) => {
-    const text = `${movie.title} ${movie.studio}`.toLowerCase()
-    return (!query || text.includes(query.toLowerCase()))
-      && (!rating || movie.rating === rating)
-      && (!minimumScore || Math.round(movie.tmdbScore * 10) >= Number(minimumScore))
-      && (!year || movie.year.startsWith(year))
-  }), [movies, query, rating, minimumScore, year])
-
-  const ratings = [...new Set(movies.map((movie) => movie.rating))].sort()
-
-  const toggleWatched = async (movie: Movie) => {
-    try {
-      await request(`/movies/${movie.imdbId}/watched`, { method: watched.has(movie.imdbId) ? 'DELETE' : 'PUT' })
-      await reload()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to update watched status')
-    }
-  }
-
-  const addToShelf = async (movie: Movie) => {
-    try {
-      await request(`/movies/${movie.imdbId}/shelf`, { method: 'PUT' })
-      await reload()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to update your movie shelf')
-    }
-  }
-
-  return (
-    <section>
-      <div className="section-heading">
-        <div><span className="eyebrow">Shared collection</span><h1>Munch movie shelf</h1><p>{movies.length} classics and counting.</p></div>
-        <button className="primary-button" onClick={() => setAdding(true)}>Add a movie</button>
-      </div>
-      <div className="filters">
-        <label><span>Search</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Title or studio" /></label>
-        <label><span>Rating</span><select value={rating} onChange={(event) => setRating(event.target.value)}><option value="">All ratings</option>{ratings.map((value) => <option key={value}>{value}</option>)}</select></label>
-        <label>
-          <span>TMDB score</span>
-          <select value={minimumScore} onChange={(event) => setMinimumScore(event.target.value)}>
-            <option value="">Any score</option>
-            {[60, 70, 75, 80, 85, 90].map((value) => <option key={value} value={value}>{value}%+</option>)}
-          </select>
-        </label>
-        <label><span>Year</span><input value={year} onChange={(event) => setYear(event.target.value)} inputMode="numeric" placeholder="e.g. 1985" /></label>
-      </div>
-      {filtered.length === 0 ? <EmptyState title="No movies found" detail="Adjust the filters or add the first matching classic." /> : (
-        <div className="movie-grid">
-          {filtered.map((movie) => (
-            <article className="movie-card" key={movie.imdbId}>
-              <Poster movie={movie} />
-              <div className="movie-copy">
-                <div className="movie-title"><div><h2>{movie.title}</h2><p>{movie.year} · {movie.rating}</p><TmdbRating movie={movie} /></div><span className="pill">{movie.studio}</span></div>
-                <p className="added-by">Added by {movie.addedByUsername}</p>
-                <div className="card-actions">
-                  <div className="card-action-buttons">
-                    <button className={watched.has(movie.imdbId) ? 'watched' : ''} onClick={() => toggleWatched(movie)}>
-                      {watched.has(movie.imdbId) ? '✓ Watched with the kids' : 'Mark as watched'}
-                    </button>
-                    <button
-                      className={shelf.has(movie.imdbId) ? 'on-shelf' : ''}
-                      disabled={shelf.has(movie.imdbId)}
-                      onClick={() => addToShelf(movie)}
-                    >
-                      {shelf.has(movie.imdbId) ? '✓ On my shelf' : 'Add to my shelf'}
-                    </button>
-                  </div>
-                  <a href={movie.imdbUrl} target="_blank" rel="noreferrer">IMDb ↗</a>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-      {adding && <AddMovieDialog request={request} reload={reload} close={() => setAdding(false)} setError={setError} />}
-    </section>
-  )
-}
-
-function MyMovieShelf({ movies, watched, shelf, request, reload, setError }: {
-  movies: Movie[]
-  watched: Set<string>
-  shelf: Set<string>
-  request: <T>(path: string, init?: RequestInit) => Promise<T>
-  reload: () => Promise<void>
-  setError: (message: string) => void
-}) {
-  const shelfMovies = useMemo(
-    () => movies.filter((movie) => shelf.has(movie.imdbId)).sort((a, b) => a.title.localeCompare(b.title)),
-    [movies, shelf],
-  )
-
-  const removeFromShelf = async (movie: Movie) => {
-    try {
-      await request(`/movies/${movie.imdbId}/shelf`, { method: 'DELETE' })
-      await reload()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to update your movie shelf')
-    }
-  }
-
-  const markWatched = async (movie: Movie) => {
-    try {
-      await request(`/movies/${movie.imdbId}/watched`, { method: 'PUT' })
-      await reload()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to update watched status')
-    }
-  }
-
-  return (
-    <section>
-      <div className="section-heading">
-        <div><span className="eyebrow">Your watch list</span><h1>My movie shelf</h1><p>{shelfMovies.length} movies saved to watch or already watched.</p></div>
-      </div>
-      {shelfMovies.length === 0 ? (
-        <EmptyState title="Your movie shelf is empty" detail="Add movies from the Munch movie shelf to build your watch list." />
-      ) : (
-        <div className="movie-grid">
-          {shelfMovies.map((movie) => {
-            const isWatched = watched.has(movie.imdbId)
-            return (
-              <article className="movie-card" key={movie.imdbId}>
-                <Poster movie={movie} />
-                <div className="movie-copy">
-                  <div className="movie-title"><div><h2>{movie.title}</h2><p>{movie.year} · {movie.rating}</p><TmdbRating movie={movie} /></div><span className="pill">{movie.studio}</span></div>
-                  <p className="added-by">Added by {movie.addedByUsername}</p>
-                  <div className="card-actions">
-                    <div className="card-action-buttons">
-                      {isWatched ? (
-                        <button className="watched" disabled>✓ Watched with the kids</button>
-                      ) : (
-                        <>
-                          <button onClick={() => markWatched(movie)}>Mark as watched</button>
-                          <button onClick={() => removeFromShelf(movie)}>Remove from my shelf</button>
-                        </>
-                      )}
-                    </div>
-                    <a href={movie.imdbUrl} target="_blank" rel="noreferrer">IMDb ↗</a>
-                  </div>
-                </div>
-              </article>
-            )
-          })}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function AddMovieDialog({ request, reload, close, setError }: {
-  request: <T>(path: string, init?: RequestInit) => Promise<T>
-  reload: () => Promise<void>
-  close: () => void
-  setError: (message: string) => void
-}) {
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<SearchResult[]>([])
-  const [searching, setSearching] = useState(false)
-  const [addingTmdbIds, setAddingTmdbIds] = useState<Set<number>>(new Set())
-  const [addedTmdbIds, setAddedTmdbIds] = useState<Set<number>>(new Set())
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [close])
-
-  const search = async (event: React.FormEvent) => {
-    event.preventDefault()
-    setSearching(true)
-    try {
-      const data = await request<{ external: SearchResult[] }>(`/movies/search?q=${encodeURIComponent(query)}`)
-      setResults(data.external)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Movie search failed')
-    } finally {
-      setSearching(false)
-    }
-  }
-
-  const add = async (tmdbId: number) => {
-    setAddingTmdbIds((current) => new Set(current).add(tmdbId))
-    try {
-      try {
-        await request('/movies', { method: 'POST', body: JSON.stringify({ tmdbId }) })
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'Movie could not be added')
-        return
-      }
-      setAddedTmdbIds((current) => new Set(current).add(tmdbId))
-      try {
-        await reload()
-      } catch (reason) {
-        setError(reason instanceof Error ? `Movie added, but catalog refresh failed: ${reason.message}` : 'Movie added, but the catalog could not be refreshed')
-      }
-    } finally {
-      setAddingTmdbIds((current) => {
-        const next = new Set(current)
-        next.delete(tmdbId)
-        return next
-      })
-    }
-  }
-
-  return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={close}>
-      <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="add-title" onMouseDown={(event) => event.stopPropagation()}>
-        <button className="dialog-close" onClick={close} aria-label="Close">×</button>
-        <span className="eyebrow">Grow the universe</span><h1 id="add-title">Add a movie</h1>
-        <form className="search-form" onSubmit={search}>
-          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} minLength={2} maxLength={100} placeholder="Try “The Princess Bride”" />
-          <button className="primary-button" disabled={searching}>{searching ? 'Searching…' : 'Search'}</button>
-        </form>
-        <div className="search-results">
-          {results.map((result) => {
-            const adding = addingTmdbIds.has(result.tmdbId)
-            const added = addedTmdbIds.has(result.tmdbId)
-            return (
-              <article key={result.imdbId}>
-                <Poster movie={result} compact />
-                <div><strong>{result.title}</strong><span>{result.year}</span></div>
-                <button
-                  className={added ? 'added' : undefined}
-                  disabled={result.alreadyAdded || adding || added}
-                  onClick={() => add(result.tmdbId)}
-                >
-                  {added ? 'Added' : result.alreadyAdded ? 'Already added' : adding ? 'Adding…' : 'Add'}
-                </button>
-              </article>
-            )
-          })}
-        </div>
-        <div className="dialog-actions">
-          <button className="primary-button" onClick={close}>Done</button>
-        </div>
-      </section>
-    </div>
-  )
-}
-
-function MyWatchedMovies({ movies, watched, request, reload, setError }: {
-  movies: Movie[]
-  watched: Set<string>
-  request: <T>(path: string, init?: RequestInit) => Promise<T>
-  reload: () => Promise<void>
-  setError: (message: string) => void
-}) {
-  const watchedMovies = useMemo(
-    () => movies.filter((movie) => watched.has(movie.imdbId)).sort((a, b) => a.title.localeCompare(b.title)),
-    [movies, watched],
-  )
-
-  const markUnwatched = async (movie: Movie) => {
-    try {
-      await request(`/movies/${movie.imdbId}/watched`, { method: 'DELETE' })
-      await reload()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to update watched status')
-    }
-  }
-
-  return (
-    <section>
-      <div className="section-heading">
-        <div><span className="eyebrow">Your family movie history</span><h1>My Watched Movies</h1><p>{watchedMovies.length} movies marked as watched with the kids.</p></div>
-      </div>
-      {watchedMovies.length === 0 ? (
-        <EmptyState title="No watched movies yet" detail="Mark movies as watched from the movie shelf to build this list." />
-      ) : (
-        <div className="watched-list">
-          {watchedMovies.map((movie) => (
-            <article key={movie.imdbId}>
-              <Poster movie={movie} compact />
-              <div><strong>{movie.title}</strong><span>{movie.year} · {movie.rating}</span><TmdbRating movie={movie} /></div>
-              <button onClick={() => markUnwatched(movie)} aria-label={`Mark ${movie.title} unwatched`}>Unwatch</button>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function MunchWatchedMovies({ movies, community }: { movies: Movie[]; community: WatchedSummary[] }) {
-  const byId = new Map(movies.map((movie) => [movie.imdbId, movie]))
-  const entries = community
-    .flatMap((entry) => {
-      const movie = byId.get(entry.imdbId)
-      return movie ? [{ ...entry, movie }] : []
-    })
-    .sort((a, b) => b.watchCount - a.watchCount || a.movie.title.localeCompare(b.movie.title))
-
-  return (
-    <section>
-      <div className="section-heading">
-        <div><span className="eyebrow">The community watchlist</span><h1>Munch Watched Movies</h1><p>Ranked only by how many members have watched each movie.</p></div>
-      </div>
-      {entries.length === 0 ? (
-        <EmptyState title="No watched movies yet" detail="The community list appears after someone marks a movie as watched." />
-      ) : (
-        <div className="watched-leaderboard">
-          {entries.map(({ movie, rank, watchCount }) => (
-            <article key={movie.imdbId}>
-              <span className="rank-number">{rank}</span>
-              <Poster movie={movie} compact />
-              <div><strong>{movie.title}</strong><span>{movie.year}</span><TmdbRating movie={movie} /></div>
-              <b>{watchCount} {watchCount === 1 ? 'watcher' : 'watchers'}</b>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function Poster({ movie, compact = false }: { movie: { title: string; posterUrl: string | null }; compact?: boolean }) {
-  return movie.posterUrl
-    ? <img className={compact ? 'poster compact' : 'poster'} src={movie.posterUrl} alt={`${movie.title} poster`} loading="lazy" />
-    : <div className={compact ? 'poster compact placeholder' : 'poster placeholder'} aria-label={`No poster for ${movie.title}`}>MCU</div>
-}
-
-function TmdbRating({ movie }: { movie: Pick<Movie, 'tmdbScore' | 'tmdbVoteCount'> }) {
-  return (
-    <span className="tmdb-rating">
-      {movie.tmdbVoteCount > 0
-        ? `${Math.round(movie.tmdbScore * 10)}% TMDB · ${voteCountFormatter.format(movie.tmdbVoteCount)} votes`
-        : 'TMDB rating unavailable'}
-    </span>
-  )
-}
-
-function EmptyState({ title, detail }: { title: string; detail: string }) {
-  return <div className="empty-state"><strong>{title}</strong><p>{detail}</p></div>
 }
 
 export default App

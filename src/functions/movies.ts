@@ -1,7 +1,7 @@
 import { app } from '@azure/functions';
 import { sessionUser } from '../shared/auth.js';
 import { errorResponse, json, optionsResponse } from '../shared/response.js';
-import { createMovie, getMovie, listMovies, listShelf, listWatched } from '../shared/storage.js';
+import { createMovie, getMovie, isConflict, listMovies, listShelf, listWatched } from '../shared/storage.js';
 import { getTmdbMovie, TmdbApiError } from '../shared/tmdb.js';
 
 app.http('movies', {
@@ -35,10 +35,7 @@ app.http('movies', {
       await createMovie(movie);
       return json(201, { movie });
     } catch (error) {
-      if (typeof error === 'object' && error !== null && 'statusCode' in error
-        && (error as { statusCode?: number }).statusCode === 409) {
-        return errorResponse(409, 'That movie already exists');
-      }
+      if (isConflict(error)) return errorResponse(409, 'That movie already exists');
       context.error('Movie creation failed', error);
       if (error instanceof TmdbApiError) return errorResponse(502, 'Movie metadata provider is unavailable');
       return errorResponse(500, 'Movie could not be added');

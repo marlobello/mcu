@@ -28,6 +28,7 @@ app.http('authLogin', {
       status: 302,
       headers: {
         Location: `https://discord.com/oauth2/authorize?${parameters}`,
+        'Cache-Control': 'no-store',
         'Set-Cookie': `oauth_state=${state}; Path=/api/auth; HttpOnly; Secure; SameSite=Lax; Max-Age=300`,
       },
     };

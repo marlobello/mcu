@@ -1,7 +1,7 @@
 import { app } from '@azure/functions';
 import { sessionUser } from '../shared/auth.js';
 import { errorResponse, json, optionsResponse } from '../shared/response.js';
-import { listMovies } from '../shared/storage.js';
+import { listMovieIds } from '../shared/storage.js';
 import { searchTmdbMovies } from '../shared/tmdb.js';
 
 app.http('movieSearch', {
@@ -14,14 +14,12 @@ app.http('movieSearch', {
     const query = request.query.get('q')?.trim() ?? '';
     if (query.length < 2 || query.length > 100) return errorResponse(400, 'Search must contain 2 to 100 characters');
 
-    const local = (await listMovies()).filter((movie) => movie.title.toLowerCase().includes(query.toLowerCase()));
     try {
-      const existingIds = new Set(local.map((movie) => movie.imdbId));
-      const external = (await searchTmdbMovies(query)).map((movie) => ({
-        ...movie,
-        alreadyAdded: existingIds.has(movie.imdbId),
-      }));
-      return json(200, { local, external });
+      // Only catalog membership is needed here, so row keys are projected instead of full movie rows.
+      const [existingIds, suggestions] = await Promise.all([listMovieIds(), searchTmdbMovies(query)]);
+      return json(200, {
+        external: suggestions.map((movie) => ({ ...movie, alreadyAdded: existingIds.has(movie.imdbId) })),
+      });
     } catch (error) {
       context.error('TMDB search failed', error);
       return errorResponse(502, 'Movie metadata provider is unavailable');

@@ -1,3 +1,4 @@
+import { isImdbId } from './imdb.js';
 import type { Movie } from './types.js';
 
 interface TmdbSearchMovie {
@@ -38,6 +39,8 @@ export class TmdbApiError extends Error {}
 
 const apiBase = 'https://api.themoviedb.org/3';
 const imageBase = 'https://image.tmdb.org/t/p/w500';
+const requestTimeoutMs = 8000;
+const maxSuggestions = 8;
 
 export async function searchTmdbMovies(query: string): Promise<TmdbMovieSuggestion[]> {
   const search = await tmdbFetch<{ results: TmdbSearchMovie[] }>('/search/movie', {
@@ -45,10 +48,10 @@ export async function searchTmdbMovies(query: string): Promise<TmdbMovieSuggesti
     include_adult: 'false',
   });
   const details = await Promise.all(
-    search.results.slice(0, 10).map((movie) => tmdbFetch<TmdbMovieDetails>(`/movie/${movie.id}`)),
+    search.results.slice(0, maxSuggestions).map((movie) => tmdbFetch<TmdbMovieDetails>(`/movie/${movie.id}`)),
   );
   return details.flatMap((movie) => {
-    if (!validImdbId(movie.imdb_id)) return [];
+    if (!isImdbId(movie.imdb_id)) return [];
     return [{
       tmdbId: movie.id,
       imdbId: movie.imdb_id,
@@ -76,7 +79,7 @@ export async function getTmdbMovie(
 }
 
 export async function refreshMovieFromTmdb(movie: Movie): Promise<Movie | null> {
-  if (!validImdbId(movie.imdbId)) return null;
+  if (!isImdbId(movie.imdbId)) return null;
   const match = await tmdbFetch<{ movie_results: TmdbSearchMovie[] }>(
     `/find/${encodeURIComponent(movie.imdbId)}`,
     { external_source: 'imdb_id' },
@@ -92,7 +95,7 @@ async function getTmdbMetadata(tmdbId: number): Promise<Omit<Movie, 'addedByUser
     tmdbFetch<TmdbMovieDetails>(`/movie/${tmdbId}`),
     tmdbFetch<TmdbReleaseDates>(`/movie/${tmdbId}/release_dates`),
   ]);
-  if (!validImdbId(details.imdb_id)) return null;
+  if (!isImdbId(details.imdb_id)) return null;
   return {
     imdbId: details.imdb_id,
     title: details.title,
@@ -111,12 +114,19 @@ async function tmdbFetch<T>(path: string, parameters: Record<string, string> = {
   if (!token) throw new TmdbApiError('TMDB_API_TOKEN is required');
   const url = new URL(`${apiBase}${path}`);
   url.search = new URLSearchParams({ language: 'en-US', ...parameters }).toString();
-  const response = await fetch(url, {
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      // A hung TMDB call would otherwise hold a Function instance for the platform timeout.
+      signal: AbortSignal.timeout(requestTimeoutMs),
+    });
+  } catch (error) {
+    throw new TmdbApiError(`TMDB request to ${path} failed`, { cause: error });
+  }
   if (!response.ok) throw new TmdbApiError(`TMDB request failed with ${response.status}`);
   return response.json() as Promise<T>;
 }
@@ -146,6 +156,3 @@ function validVoteCount(value: number): number {
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
-function validImdbId(value: string | null): value is string {
-  return Boolean(value && /^tt\d{7,10}$/.test(value));
-}

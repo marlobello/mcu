@@ -24,7 +24,7 @@ exceptions
 
 ## Backups
 
-Azure Table Storage does not provide application-level point-in-time restore in this design. Before destructive maintenance or metadata refresh, export all five tables with Azure Storage Explorer or `az storage entity query` using an authorized identity. Movie metadata can be reconstructed from TMDB, but shelf and watched status cannot. The unused legacy Rankings table is retained for rollback.
+Azure Table Storage does not provide application-level point-in-time restore in this design. Before destructive maintenance or metadata refresh, export the Movies, Users, Shelf, and Watched tables with Azure Storage Explorer or `az storage entity query` using an authorized identity. Movie metadata can be reconstructed from TMDB, but shelf and watched status cannot. The unused legacy Rankings table is retained for rollback.
 
 ## Recovery
 
@@ -32,6 +32,14 @@ Azure Table Storage does not provide application-level point-in-time restore in 
 2. Restore Key Vault secrets.
 3. Import saved table entities.
 4. Verify `/api/health`, Discord sign-in, movie search, TMDB rating display, shelf and watched toggles, My movie shelf, My Watched Movies, and Munch Watched Movies.
+
+## Routine maintenance
+
+- `ExchangeCodes` records one small row per completed sign-in so codes cannot be replayed. Rows older than a day are
+  no longer meaningful and can be deleted at any time; the table is safe to empty while nobody is mid-sign-in.
+- Role assignments removed from Bicep are not deleted by a redeploy. After the storage role was narrowed to Storage
+  Blob Data Contributor, remove any leftover Storage Blob Data Owner assignment for the API identity on the storage
+  account.
 
 ## Secret rotation
 
