@@ -36,6 +36,7 @@ Azure Table Storage does not provide application-level point-in-time restore in 
 ## Secret rotation
 
 - Rotate the session secret to invalidate all sessions.
+- Session renewal failures are non-destructive: the current valid session remains usable and renewal retries on the next application load.
 - Rotate the Discord client secret in the Discord portal, then update Key Vault.
 - Rotate the TMDB API read-access token in TMDB, then update Key Vault.
 - Function App Key Vault references pick up new versions automatically; restart the app if immediate refresh is required.

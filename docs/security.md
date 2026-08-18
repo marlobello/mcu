@@ -6,6 +6,7 @@
 - A random state value in a Secure, HttpOnly, SameSite=Lax cookie prevents login CSRF.
 - The callback validates membership in the configured Discord guild.
 - The full session token is not placed in the redirect URL; a 60-second exchange code is used.
+- Signed sessions expire after 30 days and can be renewed only while the existing bearer session is still valid.
 - Business endpoints independently validate the signed bearer session.
 
 ## Secrets and identities
@@ -31,6 +32,6 @@
 
 ## Known tradeoffs
 
-- The access token is stored in browser local storage. CSP and no third-party scripts reduce exposure, but an HttpOnly same-origin session would provide stronger XSS resistance if the frontend and API are later consolidated behind one domain.
+- The rolling access token is stored in browser local storage. CSP and no third-party scripts reduce exposure, but an HttpOnly same-origin refresh session would provide stronger XSS resistance if the frontend and API are later consolidated behind one domain.
 - The public Functions endpoint accepts authenticated cross-origin calls from the Static Web App. Every business operation must retain endpoint-level authorization.
 - TMDB data is externally maintained and is treated as untrusted input before storage or rendering.

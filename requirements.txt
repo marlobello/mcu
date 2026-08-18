@@ -8,6 +8,8 @@ Technical requirements:
 
 Business requirements:
 - Authenticated users can access the web app
+- Valid sessions last 30 days and renew automatically during active use
+- Transient API or network failures must not clear saved authentication; only an unauthorized response signs the user out
 - Users can search for and add multiple movies without closing or resetting the Add Movie dialog
 - All users can see the movies that others have added on the "Munch movie shelf"
 - Each user has a private "My movie shelf" watch list that is sorted alphabetically

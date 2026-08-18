@@ -35,33 +35,71 @@ interface SearchResult {
   alreadyAdded: boolean
 }
 
+type AuthState = 'checking' | 'authenticated' | 'anonymous' | 'error'
+
+class ApiError extends Error {
+  readonly status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
 const apiBase = (import.meta.env.VITE_API_URL ?? 'http://localhost:7071/api').replace(/\/$/, '')
 const voteCountFormatter = new Intl.NumberFormat('en-US')
+const renewalWindowMs = 7 * 24 * 60 * 60 * 1000
+
+function sessionNeedsRenewal(token: string): boolean {
+  try {
+    const encoded = token.split('.')[1]
+    if (!encoded) return false
+    const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(encoded.length / 4) * 4, '=')
+    const payload = JSON.parse(atob(base64)) as { exp?: unknown }
+    return typeof payload.exp === 'number' && payload.exp * 1000 - Date.now() <= renewalWindowMs
+  } catch {
+    return false
+  }
+}
 
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem('mcu-token'))
+  const [exchangeCode] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('code'))
+  const [exchangePending, setExchangePending] = useState(Boolean(exchangeCode))
+  const [authState, setAuthState] = useState<AuthState>(() => token || exchangeCode ? 'checking' : 'anonymous')
+  const [authRetry, setAuthRetry] = useState(0)
   const [user, setUser] = useState<User | null>(null)
   const [movies, setMovies] = useState<Movie[]>([])
   const [watched, setWatched] = useState<Set<string>>(new Set())
   const [shelf, setShelf] = useState<Set<string>>(new Set())
   const [communityWatched, setCommunityWatched] = useState<WatchedSummary[]>([])
   const [tab, setTab] = useState<'catalog' | 'shelf' | 'mine' | 'munch'>('catalog')
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const request = useCallback(async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
+    const activeToken = localStorage.getItem('mcu-token')
     const response = await fetch(`${apiBase}${path}`, {
       ...init,
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
         ...init.headers,
       },
     })
     const body = await response.json().catch(() => ({})) as T & { error?: string }
-    if (!response.ok) throw new Error(body.error ?? `Request failed with ${response.status}`)
+    if (!response.ok) {
+      const reason = new ApiError(response.status, body.error ?? `Request failed with ${response.status}`)
+      if (response.status === 401) {
+        localStorage.removeItem('mcu-token')
+        setToken(null)
+        setUser(null)
+        setAuthState('anonymous')
+        setError('Your session expired. Continue with Discord to sign in again.')
+      }
+      throw reason
+    }
     return body
-  }, [token])
+  }, [])
 
   const loadData = useCallback(async () => {
     if (!token) return
@@ -79,13 +117,16 @@ function App() {
 
   useEffect(() => {
     const exchange = async () => {
-      const code = new URLSearchParams(window.location.hash.slice(1)).get('code')
-      if (!code) return
+      if (!exchangeCode) {
+        setExchangePending(false)
+        return
+      }
+      setAuthState('checking')
       window.history.replaceState(null, '', window.location.pathname)
       const response = await fetch(`${apiBase}/auth/exchange`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code: exchangeCode }),
       })
       const body = await response.json() as { token?: string; error?: string }
       if (!response.ok || !body.token) throw new Error(body.error ?? 'Sign-in failed')
@@ -93,30 +134,64 @@ function App() {
       setToken(body.token)
     }
 
-    exchange().catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Sign-in failed'))
-  }, [])
+    exchange()
+      .catch((reason: unknown) => {
+        setError(reason instanceof Error ? reason.message : 'Sign-in failed')
+        if (!localStorage.getItem('mcu-token')) setAuthState('anonymous')
+      })
+      .finally(() => setExchangePending(false))
+  }, [exchangeCode])
 
   useEffect(() => {
-    setLoading(true)
+    if (exchangePending) return
+    if (!token) {
+      setUser(null)
+      setAuthState('anonymous')
+      return
+    }
+
+    let cancelled = false
+    setAuthState('checking')
     setError('')
     loadData()
+      .then(async () => {
+        if (cancelled) return
+        setAuthState('authenticated')
+        if (!sessionNeedsRenewal(token)) return
+        try {
+          const renewed = await request<{ token: string }>('/auth/renew', { method: 'POST' })
+          if (!cancelled) localStorage.setItem('mcu-token', renewed.token)
+        } catch (reason) {
+          if (cancelled || reason instanceof ApiError && reason.status === 401) return
+          setError('Your session is active, but automatic renewal failed. It will retry next time.')
+        }
+      })
       .catch((reason: unknown) => {
-        localStorage.removeItem('mcu-token')
-        setToken(null)
-        setUser(null)
+        if (cancelled || reason instanceof ApiError && reason.status === 401) return
+        setAuthState('error')
         setError(reason instanceof Error ? reason.message : 'Unable to load MCU')
       })
-      .finally(() => setLoading(false))
-  }, [loadData])
+    return () => {
+      cancelled = true
+    }
+  }, [authRetry, exchangePending, loadData, request, token])
 
   const logout = () => {
     localStorage.removeItem('mcu-token')
     setToken(null)
     setUser(null)
+    setAuthState('anonymous')
+    setError('')
   }
 
-  if (!token || !user) {
-    return <LoginScreen loading={loading} error={error} />
+  const retryAuthentication = () => {
+    setError('')
+    setAuthState('checking')
+    setAuthRetry((current) => current + 1)
+  }
+
+  if (authState !== 'authenticated' || !user) {
+    return <LoginScreen authState={authState} error={error} retry={retryAuthentication} />
   }
 
   return (
@@ -169,7 +244,11 @@ function App() {
   )
 }
 
-function LoginScreen({ loading, error }: { loading: boolean; error: string }) {
+function LoginScreen({ authState, error, retry }: {
+  authState: AuthState
+  error: string
+  retry: () => void
+}) {
   return (
     <main className="login-page">
       <section className="login-card">
@@ -177,9 +256,13 @@ function LoginScreen({ loading, error }: { loading: boolean; error: string }) {
         <h1>Build the family movie canon.</h1>
         <p>Collect the classics you watch together and see which movies the community has watched most.</p>
         {error && <div className="notice error" role="alert">{error}</div>}
-        <a className="primary-button discord" href={`${apiBase}/auth/login`}>
-          {loading ? 'Checking your session…' : 'Continue with Discord'}
-        </a>
+        {authState === 'checking' ? (
+          <div className="session-status" role="status">Checking your session…</div>
+        ) : authState === 'error' ? (
+          <button className="primary-button retry" onClick={retry}>Retry</button>
+        ) : (
+          <a className="primary-button discord" href={`${apiBase}/auth/login`}>Continue with Discord</a>
+        )}
         <small>Access is limited to members of the configured Discord community.</small>
       </section>
     </main>

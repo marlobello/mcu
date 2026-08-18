@@ -7,9 +7,10 @@ MCU uses a low-idle-cost Azure architecture: a static React client, a scale-to-z
 1. The browser loads the React application from Azure Static Web Apps.
 2. Sign-in redirects to Discord through the Functions API.
 3. The callback validates OAuth state and Discord guild membership.
-4. The API issues a short-lived exchange code; the browser exchanges it for a seven-day signed session token.
-5. Authenticated API requests use the bearer token.
-6. The Function App uses its user-assigned managed identity for Table Storage and Key Vault.
+4. The API issues a short-lived exchange code; the browser exchanges it for a 30-day signed session token.
+5. Authenticated API requests use the bearer token. Sessions with fewer than seven days remaining are silently renewed after successful startup validation.
+6. The client clears a saved session only after an HTTP 401 response. Transient network and server failures preserve the token and expose a Retry action.
+7. The Function App uses its user-assigned managed identity for Table Storage and Key Vault.
 
 ## Data model
 

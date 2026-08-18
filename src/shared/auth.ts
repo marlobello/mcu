@@ -17,7 +17,7 @@ export async function signSession(user: SessionUser): Promise<string> {
     .setIssuedAt()
     .setIssuer(issuer)
     .setAudience(audience)
-    .setExpirationTime('7d')
+    .setExpirationTime('30d')
     .sign(secret());
 }
 

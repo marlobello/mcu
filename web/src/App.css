@@ -52,6 +52,7 @@ main { width: min(1240px, calc(100% - 2rem)); margin: 0 auto; padding: clamp(2re
 .login-card h1 { font-size: clamp(3rem, 10vw, 6rem); }
 .login-card p { color: #d1c4b5; font-size: 1.1rem; line-height: 1.7; }
 .login-card .primary-button { width: 100%; margin: 1.6rem 0 1rem; background: #5865f2; }
+.session-status { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 46px; margin: 1.6rem 0 1rem; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; color: #d1c4b5; background: rgba(255,255,255,.08); font-weight: 700; }
 .login-card small { display: block; color: #9f958a; text-align: center; }
 
 .filters { display: grid; grid-template-columns: 2fr 1fr 1.3fr .8fr; gap: .8rem; margin-bottom: 1.5rem; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,253,248,.75); }
