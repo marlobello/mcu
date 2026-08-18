@@ -198,7 +198,7 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark">MCU</span>
+          <img className="brand-mark" src="/mcu-emblem.png" alt="" width="64" height="64" />
           <div><strong>Munch Classics Universe</strong><span>Movie nights become family lore.</span></div>
         </div>
         <div className="user-menu">
