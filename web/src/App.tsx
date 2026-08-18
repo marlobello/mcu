@@ -279,7 +279,7 @@ function MunchMovieShelf({ movies, watched, shelf, request, reload, setError }: 
 }) {
   const [query, setQuery] = useState('')
   const [rating, setRating] = useState('')
-  const [studio, setStudio] = useState('')
+  const [minimumScore, setMinimumScore] = useState('')
   const [year, setYear] = useState('')
   const [adding, setAdding] = useState(false)
 
@@ -287,12 +287,11 @@ function MunchMovieShelf({ movies, watched, shelf, request, reload, setError }: 
     const text = `${movie.title} ${movie.studio}`.toLowerCase()
     return (!query || text.includes(query.toLowerCase()))
       && (!rating || movie.rating === rating)
-      && (!studio || movie.studio === studio)
+      && (!minimumScore || Math.round(movie.tmdbScore * 10) >= Number(minimumScore))
       && (!year || movie.year.startsWith(year))
-  }), [movies, query, rating, studio, year])
+  }), [movies, query, rating, minimumScore, year])
 
   const ratings = [...new Set(movies.map((movie) => movie.rating))].sort()
-  const studios = [...new Set(movies.map((movie) => movie.studio))].sort()
 
   const toggleWatched = async (movie: Movie) => {
     try {
@@ -321,7 +320,13 @@ function MunchMovieShelf({ movies, watched, shelf, request, reload, setError }: 
       <div className="filters">
         <label><span>Search</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Title or studio" /></label>
         <label><span>Rating</span><select value={rating} onChange={(event) => setRating(event.target.value)}><option value="">All ratings</option>{ratings.map((value) => <option key={value}>{value}</option>)}</select></label>
-        <label><span>Studio</span><select value={studio} onChange={(event) => setStudio(event.target.value)}><option value="">All studios</option>{studios.map((value) => <option key={value}>{value}</option>)}</select></label>
+        <label>
+          <span>TMDB score</span>
+          <select value={minimumScore} onChange={(event) => setMinimumScore(event.target.value)}>
+            <option value="">Any score</option>
+            {[60, 70, 75, 80, 85, 90].map((value) => <option key={value} value={value}>{value}%+</option>)}
+          </select>
+        </label>
         <label><span>Year</span><input value={year} onChange={(event) => setYear(event.target.value)} inputMode="numeric" placeholder="e.g. 1985" /></label>
       </div>
       {filtered.length === 0 ? <EmptyState title="No movies found" detail="Adjust the filters or add the first matching classic." /> : (

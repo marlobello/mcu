@@ -25,4 +25,5 @@ Business requirements:
 - Each stored movie should include its TMDB user score, displayed as a percentage with the TMDB vote count
 - When adding a movie a search box should validate against existing movies in the database (to avoid duplicates) as well as search IMDB for suggestions for selection.
 - Filters will be available to filter the view by metadata
+- The Munch movie shelf includes cumulative TMDB score filters at 60%+, 70%+, 75%+, 80%+, 85%+, and 90%+
 - Each user will be able to "check off" a movie indicating that they have watched it with their kids.
