@@ -8,7 +8,9 @@ param enableQueue bool = false
 param enableTable bool = false
 
 // Define Role Definition IDs internally
-var storageRoleDefinitionId  = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b' //Storage Blob Data Owner role
+// Storage Blob Data Contributor is the role documented for a user-assigned identity on the Flex
+// Consumption deployment storage account; Blob Data Owner is broader than this app needs.
+var storageRoleDefinitionId  = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' //Storage Blob Data Contributor role
 var queueRoleDefinitionId = '974c5e8b-45b9-4653-ba55-5f855dd0fb88' // Storage Queue Data Contributor role
 var tableRoleDefinitionId = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3' // Storage Table Data Contributor role
 var monitoringRoleDefinitionId = '3913510d-42f4-4e42-8a64-420c390055eb' // Monitoring Metrics Publisher role ID

@@ -27,5 +27,19 @@ jobs:
         working-directory: web
       - run: npm run lint
         working-directory: web
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: web
       - uses: azure/setup-azd@v2
       - run: az bicep build --file infra/main.bicep
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v3

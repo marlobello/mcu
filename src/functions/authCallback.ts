@@ -1,7 +1,18 @@
 import { app, type HttpResponseInit } from '@azure/functions';
-import { createExchangeCode, discordUser, isGuildMember, parseCookie } from '../shared/auth.js';
-import { allowedOrigin, errorResponse } from '../shared/response.js';
+import { createExchangeCode, discordUser, DiscordUnavailableError, isGuildMember, parseCookie } from '../shared/auth.js';
+import { allowedOrigin, frontendRedirect } from '../shared/response.js';
 import { saveUser } from '../shared/storage.js';
+
+const clearStateCookie = 'oauth_state=; Path=/api/auth; HttpOnly; Secure; SameSite=Lax; Max-Age=0';
+const discordTimeoutMs = 8000;
+
+/**
+ * The callback is reached by a top-level browser navigation, so every outcome must redirect back to
+ * the single-page app. Returning JSON here would leave the user staring at a raw error body.
+ */
+function failure(reason: string): HttpResponseInit {
+  return frontendRedirect(`#error=${encodeURIComponent(reason)}`, { 'Set-Cookie': clearStateCookie });
+}
 
 app.http('authCallback', {
   methods: ['GET'],
@@ -11,19 +22,22 @@ app.http('authCallback', {
     const redirectUri = process.env.DISCORD_REDIRECT_URI;
     if (request.query.get('error')) {
       const loginUrl = redirectUri?.replace('/auth/callback', '/auth/login') ?? '/api/auth/login';
-      return { status: 302, headers: { Location: `${loginUrl}?consent=1` } };
+      return { status: 302, headers: { Location: `${loginUrl}?consent=1`, 'Cache-Control': 'no-store' } };
     }
 
     const code = request.query.get('code');
     const state = request.query.get('state');
     const storedState = parseCookie(request.headers.get('cookie') ?? '', 'oauth_state');
     if (!code || !state || !storedState || state !== storedState) {
-      return errorResponse(400, 'Invalid OAuth response');
+      return failure('Sign-in could not be verified. Please try again.');
     }
 
     const clientId = process.env.DISCORD_CLIENT_ID;
     const clientSecret = process.env.DISCORD_CLIENT_SECRET;
-    if (!clientId || !clientSecret || !redirectUri) return errorResponse(500, 'Authentication is not configured');
+    if (!clientId || !clientSecret || !redirectUri) {
+      context.error('Discord authentication is not configured');
+      return failure('Authentication is not configured.');
+    }
 
     try {
       const tokenResponse = await fetch('https://discord.com/api/v10/oauth2/token', {
@@ -36,6 +50,7 @@ app.http('authCallback', {
           code,
           redirect_uri: redirectUri,
         }),
+        signal: AbortSignal.timeout(discordTimeoutMs),
       });
       if (!tokenResponse.ok) {
         const discordError = await tokenResponse.text();
@@ -44,11 +59,13 @@ app.http('authCallback', {
           response: discordError.slice(0, 500),
           redirectUri,
         });
-        return errorResponse(401, 'Discord token exchange failed');
+        return failure('Discord sign-in failed. Please try again.');
       }
 
       const { access_token: accessToken } = await tokenResponse.json() as { access_token: string };
-      if (!(await isGuildMember(accessToken))) return errorResponse(403, 'Discord guild membership is required');
+      if (!(await isGuildMember(accessToken))) {
+        return failure('Access is limited to members of the configured Discord community.');
+      }
 
       const user = await discordUser(accessToken);
       await saveUser(user);
@@ -57,12 +74,15 @@ app.http('authCallback', {
         status: 302,
         headers: {
           Location: `${allowedOrigin()}/#code=${encodeURIComponent(exchangeCode)}`,
-          'Set-Cookie': 'oauth_state=; Path=/api/auth; HttpOnly; Secure; SameSite=Lax; Max-Age=0',
+          'Cache-Control': 'no-store',
+          'Set-Cookie': clearStateCookie,
         },
       };
     } catch (error) {
       context.error('Discord callback failed', error);
-      return errorResponse(500, 'Authentication failed');
+      return failure(error instanceof DiscordUnavailableError
+        ? 'Discord is unavailable right now. Please try again in a moment.'
+        : 'Authentication failed. Please try again.');
     }
   },
 });
